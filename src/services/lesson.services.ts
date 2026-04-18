@@ -1,23 +1,23 @@
 import { Op } from "sequelize";
-import Course from "../models/course.models";
-import { COURSE_EXCLUDED_ATTRIBUTES, STATUS } from "../utils/constant";
-import CourseHistory from "../models/courseHistory.models";
+import Lesson from "../models/lesson.models";
+import { LESSON_EXCLUDED_ATTRIBUTES, STATUS } from "../utils/constant";
+import LessonHistory from "../models/lessonHistory.models";
 
-export const findCourseById = async (id: string, excludeAttributes = true) => {
-  return await Course.findOne({
+export const findLessonById = async (id: string, excludeAttributes = true) => {
+  return await Lesson.findOne({
     where: {
       id: id,
     },
     ...(excludeAttributes && {
       attributes: {
-        exclude: COURSE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getAdminCourses = async (
+export const getAdminLessons = async (
   keyword?: string,
   status?: string,
   offsetSize?: number,
@@ -40,24 +40,24 @@ export const getAdminCourses = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Course.count({ where: { ...where } });
+    return await Lesson.count({ where: { ...where } });
   }
 
-  return await Course.findAll({
+  return await Lesson.findAll({
     where: { ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: COURSE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getUserCourses = async (
+export const getUserLessons = async (
   userId: string,
   keyword?: string,
   status?: string,
@@ -81,24 +81,24 @@ export const getUserCourses = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Course.count({ where: { userId, ...where } });
+    return await Lesson.count({ where: { userId, ...where } });
   }
 
-  return await Course.findAll({
+  return await Lesson.findAll({
     where: { userId, ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: COURSE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getActiveCourses = async (
+export const getActiveLessons = async (
   keyword?: string,
   offsetSize?: number,
   newPageSize?: number,
@@ -113,28 +113,28 @@ export const getActiveCourses = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Course.count({ where: { status: STATUS.ACTIVE, ...where } });
+    return await Lesson.count({ where: { status: STATUS.ACTIVE, ...where } });
   }
 
-  return await Course.findAll({
+  return await Lesson.findAll({
     where: { status: STATUS.ACTIVE, ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: COURSE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const updateCourseStatus = async (id: string, status: string) => {
-  await Course.update({ status }, { where: { id } });
+export const updateLessonStatus = async (id: string, status: string) => {
+  await Lesson.update({ status }, { where: { id } });
 };
 
-export const getCourseHistories = async (
+export const getLessonHistories = async (
   userId: string,
   keyword?: string,
   status?: string,
@@ -158,10 +158,10 @@ export const getCourseHistories = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await CourseHistory.count({ where: { userId, ...where } });
+    return await LessonHistory.count({ where: { userId, ...where } });
   }
 
-  return await CourseHistory.findAll({
+  return await LessonHistory.findAll({
     where: {
       userId,
       ...where,
@@ -171,22 +171,22 @@ export const getCourseHistories = async (
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: COURSE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getLiveCourses = async () => {
-  return await Course.findAll({
+export const getLiveLessons = async () => {
+  return await Lesson.findAll({
     where: { isLive: true },
     raw: true,
   });
 };
 
-export const findAllCoursesByIds = async (ids: string[]) => {
-  return await Course.findAll({
+export const findAllLessonsByIds = async (ids: string[]) => {
+  return await Lesson.findAll({
     where: {
       id: {
         [Op.in]: ids,

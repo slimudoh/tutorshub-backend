@@ -9,6 +9,7 @@ class Transaction extends Model {
   declare reference: string | null;
   declare status: string | null;
   declare channel: string | null;
+  declare transactionType: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -41,6 +42,10 @@ Transaction.init(
       allowNull: true,
     },
     channel: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    transactionType: {
       type: DataTypes.STRING,
       allowNull: true,
     },

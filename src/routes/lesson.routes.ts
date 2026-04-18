@@ -1,12 +1,12 @@
 import { Router } from "express";
 import {
-  getAllActiveCourses,
-  getAllUserCourses,
-  getAllCourses,
-  reviewAdminCourses,
-  getLiveSessionsCourses,
-  getMyCourseHistory,
-} from "../controllers/course.controllers";
+  getAllActiveLessons,
+  getAllUserLessons,
+  getAllLessons,
+  reviewAdminLessons,
+  getLiveSessionsLessons,
+  getMyLessonHistory,
+} from "../controllers/lesson.controllers";
 import isAuth from "../middlewares/auth.middlewares";
 import isAdmin from "../middlewares/admin.middlewares";
 import isUser from "../middlewares/user.middlewares";
@@ -15,24 +15,24 @@ import Validate from "../middlewares/validate.middlewares";
 
 const router = Router();
 
-router.get("/", getAllActiveCourses);
+router.get("/", getAllActiveLessons);
 
-router.get("/live-sessions", getLiveSessionsCourses);
+router.get("/live-sessions", getLiveSessionsLessons);
 
-router.get("/admin", isAuth, isAdmin, getAllCourses);
+router.get("/admin", isAuth, isAdmin, getAllLessons);
 
-router.get("/users", isAuth, isUser, getAllUserCourses);
+router.get("/users", isAuth, isUser, getAllUserLessons);
 
-router.get("/histories", isAuth, isUser, getMyCourseHistory);
+router.get("/histories", isAuth, isUser, getMyLessonHistory);
 
 router.patch(
-  "/review-admin-courses",
+  "/review-admin-lesson",
   check("id").notEmpty().withMessage("ID is required."),
   check("status").notEmpty().withMessage("Status is required."),
   Validate,
   isAuth,
   isAdmin,
-  reviewAdminCourses,
+  reviewAdminLessons,
 );
 
 export default router;

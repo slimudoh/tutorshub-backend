@@ -36,7 +36,11 @@ const isUser: RequestHandler = async (
       return next(error);
     }
 
-    if (user.role !== ROLES.USER && user.role !== ROLES.ADMIN) {
+    if (
+      user.role !== ROLES.USER &&
+      user.role !== ROLES.ADMIN &&
+      user.role !== ROLES.SUPER_ADMIN
+    ) {
       const error = new Error(
         "You are not authorized to view this page.",
       ) as ResponseError;

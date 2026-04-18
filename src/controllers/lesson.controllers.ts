@@ -4,14 +4,14 @@ import { Users } from "../interfaces/user";
 import { ResponseError } from "../interfaces";
 import { createServerError } from "../services/error.services";
 import {
-  findCourseById,
-  getActiveCourses,
-  getAdminCourses,
-  getCourseHistories,
-  getUserCourses,
-  updateCourseStatus,
-  getLiveCourses,
-} from "../services/course.services";
+  findLessonById,
+  getActiveLessons,
+  getAdminLessons,
+  getLessonHistories,
+  getUserLessons,
+  updateLessonStatus,
+  getLiveLessons,
+} from "../services/lesson.services";
 import { STATUS } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
@@ -20,7 +20,7 @@ interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
 
-export const getAllCourses: RequestHandler = async (
+export const getAllLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -31,14 +31,14 @@ export const getAllCourses: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const courses = await getAdminCourses(
+    const lesson = await getAdminLessons(
       keyword as string,
       status as string,
       offsetSize,
       newPageSize,
     );
 
-    const totalPages = await getAdminCourses(
+    const totalPages = await getAdminLessons(
       keyword as string,
       status as string,
     );
@@ -51,7 +51,7 @@ export const getAllCourses: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
-      data: courses,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -59,7 +59,7 @@ export const getAllCourses: RequestHandler = async (
   }
 };
 
-export const reviewAdminCourses: RequestHandler = async (
+export const reviewAdminLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -69,11 +69,11 @@ export const reviewAdminCourses: RequestHandler = async (
 
     const { id, status } = request.body;
 
-    const course = await findCourseById(id);
+    const lesson = await findLessonById(id);
 
-    if (!course) {
+    if (!lesson) {
       const error = new Error(
-        "Course not found. Please try again later.",
+        "Lesson not found. Please try again later.",
       ) as ResponseError;
       error.statusCode = 404;
       return next(error);
@@ -89,15 +89,15 @@ export const reviewAdminCourses: RequestHandler = async (
 
     if (status === STATUS.PENDING) {
       const error = new Error(
-        "Course is in PENDING status. You cannot review a pending course.",
+        "Lesson is in PENDING status. You cannot review a pending lesson.",
       ) as ResponseError;
       error.statusCode = 400;
       return next(error);
     }
 
-    if (course.status === status) {
+    if (lesson.status === status) {
       const error = new Error(
-        "Course is already in the selected status. Please try again later.",
+        "Lesson is already in the selected status. Please try again later.",
       ) as ResponseError;
       error.statusCode = 400;
       return next(error);
@@ -106,23 +106,23 @@ export const reviewAdminCourses: RequestHandler = async (
     const newStatus =
       status === STATUS.ACTIVATE ? STATUS.ACTIVE : STATUS.SUSPENDED;
 
-    await updateCourseStatus(id, newStatus);
+    await updateLessonStatus(id, newStatus);
 
     const targetUser = await findUserById(userId);
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
       action: newStatus,
-      oldData: JSON.stringify(course),
+      oldData: JSON.stringify(lesson),
       newData: JSON.stringify({
-        ...course,
+        ...lesson,
         status: newStatus,
       }),
-      section: "REVIEW COURSE",
+      section: "REVIEW LESSON",
     });
 
     response.status(201).json({
-      message: "Course reviewed successfully.",
+      message: "Lesson reviewed successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -130,7 +130,7 @@ export const reviewAdminCourses: RequestHandler = async (
   }
 };
 
-export const getAllActiveCourses: RequestHandler = async (
+export const getAllActiveLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -141,13 +141,13 @@ export const getAllActiveCourses: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const courses = await getActiveCourses(
+    const lesson = await getActiveLessons(
       keyword as string,
       offsetSize,
       newPageSize,
     );
 
-    const totalPages = await getActiveCourses(keyword as string);
+    const totalPages = await getActiveLessons(keyword as string);
 
     response.status(201).json({
       currentPage: newPageNumber,
@@ -157,7 +157,7 @@ export const getAllActiveCourses: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
-      data: courses,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -165,7 +165,7 @@ export const getAllActiveCourses: RequestHandler = async (
   }
 };
 
-export const getAllUserCourses: RequestHandler = async (
+export const getAllUserLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -178,7 +178,7 @@ export const getAllUserCourses: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const courses = await getUserCourses(
+    const lesson = await getUserLessons(
       userId,
       keyword as string,
       status as string,
@@ -186,7 +186,7 @@ export const getAllUserCourses: RequestHandler = async (
       newPageSize,
     );
 
-    const totalPages = await getUserCourses(
+    const totalPages = await getUserLessons(
       userId,
       keyword as string,
       status as string,
@@ -200,7 +200,7 @@ export const getAllUserCourses: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
-      data: courses,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -208,16 +208,16 @@ export const getAllUserCourses: RequestHandler = async (
   }
 };
 
-export const getLiveSessionsCourses: RequestHandler = async (
+export const getLiveSessionsLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
   try {
-    const courses = await getLiveCourses();
+    const lesson = await getLiveLessons();
 
     response.status(201).json({
-      data: courses,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -225,7 +225,7 @@ export const getLiveSessionsCourses: RequestHandler = async (
   }
 };
 
-export const getMyCourseHistory: RequestHandler = async (
+export const getMyLessonHistory: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -238,7 +238,7 @@ export const getMyCourseHistory: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const courseHistories = await getCourseHistories(
+    const lessonHistories = await getLessonHistories(
       userId,
       keyword as string,
       status as string,
@@ -246,7 +246,7 @@ export const getMyCourseHistory: RequestHandler = async (
       newPageSize,
     );
 
-    const totalPages = await getCourseHistories(
+    const totalPages = await getLessonHistories(
       userId,
       keyword as string,
       status as string,
@@ -260,7 +260,7 @@ export const getMyCourseHistory: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
-      data: courseHistories,
+      data: lessonHistories,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

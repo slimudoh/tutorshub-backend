@@ -23,12 +23,34 @@ export const getOverview: RequestHandler = async (
     const user = await findUserById(userId);
 
     let overviewData = {
+      // admin
       totalUsers: 0,
-      totalCourses: 0,
-      totalTransactions: 0,
+      totalActiveUsers: 0,
+      totalPendingUsers: 0,
+      totalSuspendedUsers: 0,
+      totalDeactivatedUsers: 0,
       totalActiveCurrencies: 0,
-      courses: 0,
-      liveCourses: 0,
+      totalLessons: 0,
+      totalActiveLessons: 0,
+      totalPendingLessons: 0,
+      totalSuspendedLessons: 0,
+      totalDeactivatedLessons: 0,
+      totalEarnings: 0,
+      totalPayouts: 0,
+      totalPayments: 0,
+      totalSubscribers: 0,
+      totalReviews: 0,
+      // user
+      lesson: 0,
+      activeLessons: 0,
+      pendingLessons: 0,
+      suspendedLessons: 0,
+      deactivatedLessons: 0,
+      earnings: 0,
+      payouts: 0,
+      payments: 0,
+      subscribers: 0,
+      reviews: 0,
     };
 
     if (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") {

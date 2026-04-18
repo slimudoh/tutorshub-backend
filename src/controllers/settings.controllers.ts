@@ -27,15 +27,15 @@ export const getUserSettings: RequestHandler = async (
     response.status(201).json({
       data: {
         login: settings?.login || false,
-        newCourse: settings?.newCourse || false,
-        classNotSubscribed: settings?.classNotSubscribed || false,
-        classSubscribed1Day: settings?.classSubscribed1Day || false,
-        classSubscribed1Hour: settings?.classSubscribed1Hour || false,
-        classSubscribed30Minutes: settings?.classSubscribed30Minutes || false,
-        classSubscribed15Minutes: settings?.classSubscribed15Minutes || false,
-        classSubscribed5Minutes: settings?.classSubscribed5Minutes || false,
+        newLesson: settings?.newLesson || false,
+        lessonNotSubscribed: settings?.lessonNotSubscribed || false,
+        lessonSubscribed1Day: settings?.lessonSubscribed1Day || false,
+        lessonSubscribed1Hour: settings?.lessonSubscribed1Hour || false,
+        lessonSubscribed30Minutes: settings?.lessonSubscribed30Minutes || false,
+        lessonSubscribed15Minutes: settings?.lessonSubscribed15Minutes || false,
+        lessonSubscribed5Minutes: settings?.lessonSubscribed5Minutes || false,
         newMessage: settings?.newMessage || false,
-        courseComplete: settings?.courseComplete || false,
+        lessonComplete: settings?.lessonComplete || false,
         weeklySummary: settings?.weeklySummary || false,
         monthlySummary: settings?.monthlySummary || false,
       },
@@ -84,18 +84,18 @@ export const updateNotificationSettings: RequestHandler = async (
       message: "Notification settings updated successfully",
       data: {
         login: updatedSettings?.login || false,
-        newCourse: updatedSettings?.newCourse || false,
-        classNotSubscribed: updatedSettings?.classNotSubscribed || false,
-        classSubscribed1Day: updatedSettings?.classSubscribed1Day || false,
-        classSubscribed1Hour: updatedSettings?.classSubscribed1Hour || false,
-        classSubscribed30Minutes:
-          updatedSettings?.classSubscribed30Minutes || false,
-        classSubscribed15Minutes:
-          updatedSettings?.classSubscribed15Minutes || false,
-        classSubscribed5Minutes:
-          updatedSettings?.classSubscribed5Minutes || false,
+        newLesson: updatedSettings?.newLesson || false,
+        lessonNotSubscribed: updatedSettings?.lessonNotSubscribed || false,
+        lessonSubscribed1Day: updatedSettings?.lessonSubscribed1Day || false,
+        lessonSubscribed1Hour: updatedSettings?.lessonSubscribed1Hour || false,
+        lessonSubscribed30Minutes:
+          updatedSettings?.lessonSubscribed30Minutes || false,
+        lessonSubscribed15Minutes:
+          updatedSettings?.lessonSubscribed15Minutes || false,
+        lessonSubscribed5Minutes:
+          updatedSettings?.lessonSubscribed5Minutes || false,
         newMessage: updatedSettings?.newMessage || false,
-        courseComplete: updatedSettings?.courseComplete || false,
+        lessonComplete: updatedSettings?.lessonComplete || false,
         weeklySummary: updatedSettings?.weeklySummary || false,
         monthlySummary: updatedSettings?.monthlySummary || false,
       },

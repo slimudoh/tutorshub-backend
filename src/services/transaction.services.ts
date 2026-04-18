@@ -2,7 +2,8 @@ import { Op } from "sequelize";
 import Transaction from "../models/transaction.models";
 import { TRANSACTION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 
-export const getTransactions = async (
+export const getAdminTransactions = async (
+  transactionType: string,
   keyword?: string,
   status?: string,
   offsetSize?: number,
@@ -25,6 +26,7 @@ export const getTransactions = async (
   if (status) {
     where = {
       ...where,
+      transactionType,
       status,
     };
   }
@@ -49,6 +51,7 @@ export const getTransactions = async (
 
 export const getUserTransactions = async (
   userId: string,
+  transactionType: string,
   keyword?: string,
   status?: string,
   offsetSize?: number,
@@ -80,7 +83,11 @@ export const getUserTransactions = async (
   }
 
   return await Transaction.findAll({
-    where,
+    where: {
+      ...where,
+      transactionType,
+      userId,
+    },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),

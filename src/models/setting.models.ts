@@ -5,15 +5,15 @@ class Setting extends Model {
   declare id: string | null;
   declare userId: string | null;
   declare login: boolean | null;
-  declare newCourse: boolean | null;
-  declare classNotSubscribed: boolean | null;
-  declare classSubscribed1Day: boolean | null;
-  declare classSubscribed1Hour: boolean | null;
-  declare classSubscribed30Minutes: boolean | null;
-  declare classSubscribed15Minutes: boolean | null;
-  declare classSubscribed5Minutes: boolean | null;
+  declare newLesson: boolean | null;
+  declare lessonNotSubscribed: boolean | null;
+  declare lessonSubscribed1Day: boolean | null;
+  declare lessonSubscribed1Hour: boolean | null;
+  declare lessonSubscribed30Minutes: boolean | null;
+  declare lessonSubscribed15Minutes: boolean | null;
+  declare lessonSubscribed5Minutes: boolean | null;
   declare newMessage: boolean | null;
-  declare courseComplete: boolean | null;
+  declare lessonComplete: boolean | null;
   declare weeklySummary: boolean | null;
   declare monthlySummary: boolean | null;
   declare createdAt: Date;
@@ -36,37 +36,37 @@ Setting.init(
       allowNull: false,
       defaultValue: false,
     },
-    newCourse: {
+    newLesson: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classNotSubscribed: {
+    lessonNotSubscribed: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classSubscribed1Day: {
+    lessonSubscribed1Day: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classSubscribed1Hour: {
+    lessonSubscribed1Hour: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classSubscribed30Minutes: {
+    lessonSubscribed30Minutes: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classSubscribed15Minutes: {
+    lessonSubscribed15Minutes: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    classSubscribed5Minutes: {
+    lessonSubscribed5Minutes: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
@@ -76,7 +76,7 @@ Setting.init(
       allowNull: false,
       defaultValue: false,
     },
-    courseComplete: {
+    lessonComplete: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,

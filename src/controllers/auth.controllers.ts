@@ -245,11 +245,11 @@ export const verifyEmail: RequestHandler = async (
     const newMessage = `
    <p> We're excited to have you join our learning community. You're now one step closer to gaining new skills and achieving your goals.</p>
 
-   <p>Get started by exploring your dashboard, choosing a course that interests you, and beginning your learning journey today.</p>
+   <p>Get started by exploring your dashboard, choosing a lesson that interests you, and beginning your learning journey today.</p>
    <p>If you ever need help, we're here to support you every step of the way.</p>
 
    <p>Happy learning!</p>
-    
+
     `;
 
     await createMessage("Welcome!!!", newMessage, user?.id ?? "");

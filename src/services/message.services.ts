@@ -3,15 +3,15 @@ import { MESSAGE_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import Message from "../models/message.models";
 import { format } from "date-fns";
 
-// settings.newCourse = notification.newCourse;
-// settings.classNotSubscribed = notification.classNotSubscribed;
-// settings.classSubscribed1Day = notification.classSubscribed1Day;
-// settings.classSubscribed1Hour = notification.classSubscribed1Hour;
-// settings.classSubscribed30Minutes = notification.classSubscribed30Minutes;
-// settings.classSubscribed15Minutes = notification.classSubscribed15Minutes;
-// settings.classSubscribed5Minutes = notification.classSubscribed5Minutes;
+// settings.newLesson = notification.newLesson;
+// settings.lessonNotSubscribed = notification.lessonNotSubscribed;
+// settings.lessonSubscribed1Day = notification.lessonSubscribed1Day;
+// settings.lessonSubscribed1Hour = notification.lessonSubscribed1Hour;
+// settings.lessonSubscribed30Minutes = notification.lessonSubscribed30Minutes;
+// settings.lessonSubscribed15Minutes = notification.lessonSubscribed15Minutes;
+// settings.lessonSubscribed5Minutes = notification.lessonSubscribed5Minutes;
 // settings.newMessage = notification.newMessage;
-// settings.courseComplete = notification.courseComplete;
+// settings.lessonComplete = notification.lessonComplete;
 // settings.weeklySummary = notification.weeklySummary;
 // settings.monthlySummary = notification.monthlySummary;
 

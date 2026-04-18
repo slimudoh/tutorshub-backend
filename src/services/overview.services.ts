@@ -1,50 +1,125 @@
-import Course from "../models/course.models";
+import Lesson from "../models/lesson.models";
 import Transaction from "../models/transaction.models";
 import User from "../models/user.models";
-import { STATUS } from "../utils/constant";
+import { STATUS, TRANSACTION_TYPE } from "../utils/constant";
 import Currency from "../models/currency.models";
+import Subscriber from "../models/subscriber.models";
+import Review from "../models/review.models";
 
 export const getAdminOverviewData = async () => {
-  const totalUsers = await User.count();
-  const totalCourses = await Course.count();
-  const totalTransactions = await Transaction.count();
+  const totalTransactions = await Transaction.findAll();
+  const totalSubscribers = await Subscriber.count();
+
+  const totalReviews = await Review.count();
   const totalActiveCurrencies = await Currency.count({
     where: {
       status: STATUS.ACTIVE,
     },
   });
+  const totalUsers = await User.findAll();
+  const totalActiveUsers = totalUsers.filter(
+    (user) => user.status === STATUS.ACTIVE,
+  ).length;
+  const totalPendingUsers = totalUsers.filter(
+    (user) => user.status === STATUS.PENDING,
+  ).length;
+  const totalSuspendedUsers = totalUsers.filter(
+    (user) => user.status === STATUS.SUSPENDED,
+  ).length;
+  const totalDeactivatedUsers = totalUsers.filter(
+    (user) => user.status === STATUS.DEACTIVATED,
+  ).length;
+
+  const totalLessons = await Lesson.findAll();
+  const totalActiveLessons = totalLessons.filter(
+    (lesson) => lesson.status === STATUS.ACTIVE,
+  ).length;
+  const totalPendingLessons = totalLessons.filter(
+    (lesson) => lesson.status === STATUS.PENDING,
+  ).length;
+  const totalSuspendedLessons = totalLessons.filter(
+    (lesson) => lesson.status === STATUS.SUSPENDED,
+  ).length;
+  const totalDeactivatedLessons = totalLessons.filter(
+    (lesson) => lesson.status === STATUS.DEACTIVATED,
+  ).length;
 
   return {
-    totalUsers,
-    totalCourses,
-    totalTransactions,
+    totalUsers: totalUsers.length,
+    totalActiveUsers,
+    totalPendingUsers,
+    totalSuspendedUsers,
+    totalDeactivatedUsers,
+    totalLessons: totalLessons.length,
+    totalActiveLessons,
+    totalPendingLessons,
+    totalSuspendedLessons,
+    totalDeactivatedLessons,
     totalActiveCurrencies,
+    totalEarnings: totalTransactions.filter(
+      (transaction) => transaction.transactionType === TRANSACTION_TYPE.EARNING,
+    ).length,
+    totalPayouts: totalTransactions.filter(
+      (transaction) => transaction.transactionType === TRANSACTION_TYPE.PAYOUT,
+    ).length,
+    totalPayments: totalTransactions.filter(
+      (transaction) => transaction.transactionType === TRANSACTION_TYPE.PAYMENT,
+    ).length,
+    totalSubscribers,
+    totalReviews,
   };
 };
 
 export const getUserOverviewData = async (userId: string) => {
-  const courses = await Course.count({
+  const transactions = await Transaction.findAll({
     where: {
       userId,
     },
   });
 
-  const liveCourses = await Course.count({
+  const lesson = await Lesson.findAll({
     where: {
       userId,
-      isLive: true,
     },
   });
 
-  const totalTransactions = await Transaction.count({
+  const subscribers = await Subscriber.count({
+    where: {
+      userId,
+    },
+  });
+
+  const reviews = await Review.count({
     where: {
       userId,
     },
   });
 
   return {
-    courses,
-    liveCourses,
-    totalTransactions,
+    lesson: lesson.length,
+    activeLessons: lesson.filter((lesson) => lesson.status === STATUS.ACTIVE)
+      .length,
+    pendingLessons: lesson.filter((lesson) => lesson.status === STATUS.PENDING)
+      .length,
+    suspendedLessons: lesson.filter(
+      (lesson) => lesson.status === STATUS.SUSPENDED,
+    ).length,
+    deactivatedLessons: lesson.filter(
+      (lesson) => lesson.status === STATUS.DEACTIVATED,
+    ).length,
+    earnings: transactions.filter(
+      (transactions) =>
+        transactions.transactionType === TRANSACTION_TYPE.EARNING,
+    ).length,
+    payouts: transactions.filter(
+      (transactions) =>
+        transactions.transactionType === TRANSACTION_TYPE.PAYOUT,
+    ).length,
+    payments: transactions.filter(
+      (transactions) =>
+        transactions.transactionType === TRANSACTION_TYPE.PAYMENT,
+    ).length,
+    subscribers,
+    reviews,
   };
 };

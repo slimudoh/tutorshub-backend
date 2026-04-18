@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const lesson_controllers_1 = require("../controllers/lesson.controllers");
+const auth_middlewares_1 = __importDefault(require("../middlewares/auth.middlewares"));
+const admin_middlewares_1 = __importDefault(require("../middlewares/admin.middlewares"));
+const user_middlewares_1 = __importDefault(require("../middlewares/user.middlewares"));
+const express_validator_1 = require("express-validator");
+const validate_middlewares_1 = __importDefault(require("../middlewares/validate.middlewares"));
+const router = (0, express_1.Router)();
+router.get("/", lesson_controllers_1.getAllActiveLessons);
+router.get("/live-sessions", lesson_controllers_1.getLiveSessionsLessons);
+router.get("/admin", auth_middlewares_1.default, admin_middlewares_1.default, lesson_controllers_1.getAllLessons);
+router.get("/users", auth_middlewares_1.default, user_middlewares_1.default, lesson_controllers_1.getAllUserLessons);
+router.get("/histories", auth_middlewares_1.default, user_middlewares_1.default, lesson_controllers_1.getMyLessonHistory);
+router.patch("/review-admin-lesson", (0, express_validator_1.check)("id").notEmpty().withMessage("ID is required."), (0, express_validator_1.check)("status").notEmpty().withMessage("Status is required."), validate_middlewares_1.default, auth_middlewares_1.default, admin_middlewares_1.default, lesson_controllers_1.reviewAdminLessons);
+exports.default = router;

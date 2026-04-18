@@ -3,7 +3,7 @@ import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import { getWishList } from "../services/wishlist.services";
-import { findAllCoursesByIds } from "../services/course.services";
+import { findAllLessonsByIds } from "../services/lesson.services";
 import WishList from "../models/wishlist.models";
 
 interface CustomRequest extends Request {
@@ -20,22 +20,22 @@ export const getUserWishList: RequestHandler = async (
 
     const wishList = await getWishList(userId);
 
-    const courseIds = wishList.map((item: WishList) => item.courseId);
+    const lessonIds = wishList.map((item: WishList) => item.lessonId);
 
-    if (!courseIds.length) {
+    if (!lessonIds.length) {
       return response.status(201).json({
         data: [],
       });
     }
 
-    const filteredCourseIds = courseIds.filter(
+    const filteredLessonIds = lessonIds.filter(
       (id: string | null) => id !== null,
     );
 
-    const courses = await findAllCoursesByIds(filteredCourseIds);
+    const lesson = await findAllLessonsByIds(filteredLessonIds);
 
     response.status(201).json({
-      data: courses,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

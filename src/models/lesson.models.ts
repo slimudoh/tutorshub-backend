@@ -1,22 +1,22 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class CourseHistory extends Model {
+class Lesson extends Model {
   declare id: string | null;
   declare userId: string | null;
   declare title: string | null;
+  declare description: string | null;
   declare level: string | null;
+  declare status: string | null;
   declare category: string | null;
   declare language: string | null;
   declare duration: string | null;
-  declare startDate: Date | null;
-  declare endDate: Date | null;
-  declare status: string | null;
+  declare isLive: boolean | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-CourseHistory.init(
+Lesson.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -28,6 +28,10 @@ CourseHistory.init(
       allowNull: true,
     },
     title: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    description: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
@@ -51,19 +55,15 @@ CourseHistory.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    startDate: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-    endDate: {
-      type: DataTypes.DATE,
+    isLive: {
+      type: DataTypes.BOOLEAN,
       allowNull: true,
     },
   },
   {
-    tableName: "courseHistories",
+    tableName: "lesson",
     sequelize,
   },
 );
 
-export default CourseHistory;
+export default Lesson;

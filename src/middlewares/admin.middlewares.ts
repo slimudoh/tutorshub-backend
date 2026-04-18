@@ -35,7 +35,7 @@ const isAdmin: RequestHandler = async (
       return next(error);
     }
 
-    if (authUser.role !== ROLES.ADMIN) {
+    if (authUser.role !== ROLES.ADMIN && user.role !== ROLES.SUPER_ADMIN) {
       const error = new Error(
         "You are not authorized to view this page.",
       ) as ResponseError;

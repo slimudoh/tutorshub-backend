@@ -1,6 +1,7 @@
 export const ROLES = {
   USER: "USER",
   ADMIN: "ADMIN",
+  SUPER_ADMIN: "SUPER_ADMIN",
 };
 
 export const APP_NAME = "TutorsHub";
@@ -19,6 +20,12 @@ export const STATUS = {
   INACTIVE: "INACTIVE",
 };
 
+export const TRANSACTION_TYPE = {
+  PAYMENT: "PAYMENT",
+  PAYOUT: "PAYOUT",
+  EARNING: "EARNING",
+};
+
 export const VERIFICATION = {
   VERIFIED: "VERIFIED",
   NOT_VERIFIED: "NOT_VERIFIED",
@@ -35,7 +42,7 @@ export const MAIL_CONFIG = {
   // host: "mail.ribigifts.com",
 };
 
-export const COURSE_LEVEL = {
+export const LESSON_LEVEL = {
   BEGINNER: "BEGINNER",
   INTERMEDIATE: "INTERMEDIATE",
   ADVANCED: "ADVANCED",
@@ -51,10 +58,14 @@ export const USER_EXCLUDED_ATTRIBUTES = [
   "tokenExpiryStatus",
 ];
 
-export const COURSE_EXCLUDED_ATTRIBUTES = [];
+export const LESSON_EXCLUDED_ATTRIBUTES = [];
 
 export const MESSAGE_EXCLUDED_ATTRIBUTES = [];
 
 export const TRANSACTION_EXCLUDED_ATTRIBUTES = [];
 
 export const PRICING_PLAN_EXCLUDED_ATTRIBUTES = [];
+
+export const SUBSCRIBER_EXCLUDED_ATTRIBUTES = [];
+
+export const REVIEW_EXCLUDED_ATTRIBUTES = [];

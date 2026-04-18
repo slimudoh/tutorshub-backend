@@ -4,7 +4,7 @@ import sequelize from "../utils/db";
 class WishList extends Model {
   declare id: string | null;
   declare userId: string | null;
-  declare courseId: string | null;
+  declare lessonId: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -20,7 +20,7 @@ WishList.init(
       type: DataTypes.UUID,
       allowNull: false,
     },
-    courseId: {
+    lessonId: {
       type: DataTypes.UUID,
       allowNull: false,
     },
