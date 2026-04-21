@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class Subscriber extends Model {
+class Enrollee extends Model {
   declare id: string | null;
   declare userId: string | null;
   declare lessonId: string | null;
@@ -10,7 +10,7 @@ class Subscriber extends Model {
   declare updatedAt: Date;
 }
 
-Subscriber.init(
+Enrollee.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -31,9 +31,9 @@ Subscriber.init(
     },
   },
   {
-    tableName: "subscribers",
+    tableName: "enrollees",
     sequelize,
   },
 );
 
-export default Subscriber;
+export default Enrollee;

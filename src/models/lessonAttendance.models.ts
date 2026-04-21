@@ -1,29 +1,20 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// instructor_earnings
-// -------------------
-// id
-// instructor_id
-// lesson_id
-// students_count
-// amount
-// status
-
-class Transaction extends Model {
+class LessonAttendance extends Model {
   declare id: string | null;
   declare userId: string | null;
-  declare amount: number | null;
-  declare currency: string | null;
-  declare reference: string | null;
-  declare status: string | null;
-  declare channel: string | null;
-  declare transactionType: string | null;
+  declare lessonId: string | null;
+  declare joinTime: string | null;
+  declare leaveTime: string | null;
+  declare durationMinutes: string | null;
+  declare eligibleForPayout: boolean | null;
+  declare payoutAmount: number | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-Transaction.init(
+LessonAttendance.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -34,35 +25,35 @@ Transaction.init(
       type: DataTypes.UUID,
       allowNull: true,
     },
-    amount: {
+    lessonId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    joinTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    leaveTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    durationMinutes: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    eligibleForPayout: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+    },
+    payoutAmount: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-    },
-    currency: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    reference: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    status: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    channel: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    transactionType: {
-      type: DataTypes.STRING,
       allowNull: true,
     },
   },
   {
-    tableName: "transactions",
+    tableName: "lessonAttendances",
     sequelize,
   },
 );
 
-export default Transaction;
+export default LessonAttendance;

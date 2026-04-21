@@ -38,7 +38,7 @@ export const getOverview: RequestHandler = async (
       totalEarnings: 0,
       totalPayouts: 0,
       totalPayments: 0,
-      totalSubscribers: 0,
+      totalEnrollees: 0,
       totalReviews: 0,
       // user
       lesson: 0,
@@ -49,7 +49,7 @@ export const getOverview: RequestHandler = async (
       earnings: 0,
       payouts: 0,
       payments: 0,
-      subscribers: 0,
+      enrollees: 0,
       reviews: 0,
     };
 

@@ -3,11 +3,11 @@ import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
-  deleteUserMessage,
-  findMessageById,
-  getUserMessages,
-  markUserMessageAsRead,
-} from "../services/message.services";
+  deleteUserNotification,
+  findNotificationById,
+  getUserNotifications,
+  markUserNotificationAsRead,
+} from "../services/notification.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
 
@@ -15,7 +15,7 @@ interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
 
-export const getMessages: RequestHandler = async (
+export const getNotifications: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -28,7 +28,7 @@ export const getMessages: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const messages = await getUserMessages(
+    const messages = await getUserNotifications(
       userId,
       keyword as string,
       status as string,
@@ -36,7 +36,7 @@ export const getMessages: RequestHandler = async (
       newPageSize,
     );
 
-    const totalPages = await getUserMessages(
+    const totalPages = await getUserNotifications(
       userId,
       keyword as string,
       status as string,
@@ -58,7 +58,7 @@ export const getMessages: RequestHandler = async (
   }
 };
 
-export const markMessageAsRead: RequestHandler = async (
+export const markNotificationAsRead: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -69,11 +69,11 @@ export const markMessageAsRead: RequestHandler = async (
 
     console.log({ id });
 
-    const message = await findMessageById(id);
+    const message = await findNotificationById(id);
 
     if (!message) {
       return response.status(404).json({
-        message: "Message not found",
+        message: "Notification not found",
       });
     }
 
@@ -83,22 +83,22 @@ export const markMessageAsRead: RequestHandler = async (
       });
     }
 
-    await markUserMessageAsRead(id);
+    await markUserNotificationAsRead(id);
 
-    const updatedMessage = await findMessageById(id);
+    const updatedNotification = await findNotificationById(id);
 
     const user = await findUserById(userId);
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "MARK MESSAGE AS READ",
+      action: "MARK NOTIFICATION AS READ",
       oldData: JSON.stringify(message),
-      newData: JSON.stringify(updatedMessage),
-      section: "MESSAGE",
+      newData: JSON.stringify(updatedNotification),
+      section: "NOTIFICATION",
     });
 
     response.status(200).json({
-      message: "Message marked as read successfully",
+      message: "Notification marked as read successfully",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -106,7 +106,7 @@ export const markMessageAsRead: RequestHandler = async (
   }
 };
 
-export const deleteMessage: RequestHandler = async (
+export const deleteNotification: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -115,11 +115,11 @@ export const deleteMessage: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const { id } = request.params;
 
-    const message = await findMessageById(id);
+    const message = await findNotificationById(id);
 
     if (!message) {
       return response.status(404).json({
-        message: "Message not found",
+        message: "Notification not found",
       });
     }
 
@@ -129,19 +129,19 @@ export const deleteMessage: RequestHandler = async (
       });
     }
 
-    await deleteUserMessage(id);
+    await deleteUserNotification(id);
 
     const user = await findUserById(userId);
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "DELETE MESSAGE",
+      action: "DELETE NOTIFICATION",
       newData: JSON.stringify(message),
-      section: "MESSAGE",
+      section: "NOTIFICATION",
     });
 
     response.status(200).json({
-      message: "Message deleted successfully",
+      message: "Notification deleted successfully",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

@@ -1,8 +1,8 @@
 import { Op } from "sequelize";
-import Subscriber from "../models/subscriber.models";
-import { SUBSCRIBER_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import Enrollee from "../models/enrollee.models";
+import { ENROLLEE_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 
-export const getAdminSubscribers = async (
+export const getAdminEnrollees = async (
   keyword?: string,
   status?: string,
   offsetSize?: number,
@@ -25,24 +25,24 @@ export const getAdminSubscribers = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Subscriber.count({ where: { ...where } });
+    return await Enrollee.count({ where: { ...where } });
   }
 
-  return await Subscriber.findAll({
+  return await Enrollee.findAll({
     where: { ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: SUBSCRIBER_EXCLUDED_ATTRIBUTES,
+        exclude: ENROLLEE_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getSubscribers = async (
+export const getEnrollees = async (
   userId: string,
   keyword?: string,
   status?: string,
@@ -66,17 +66,17 @@ export const getSubscribers = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Subscriber.count({ where: { ...where, userId } });
+    return await Enrollee.count({ where: { ...where, userId } });
   }
 
-  return await Subscriber.findAll({
+  return await Enrollee.findAll({
     where: { ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: SUBSCRIBER_EXCLUDED_ATTRIBUTES,
+        exclude: ENROLLEE_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,

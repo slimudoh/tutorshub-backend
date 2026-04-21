@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class Message extends Model {
+class Notification extends Model {
   declare id: string | null;
   declare senderId: string | null;
   declare receiverId: string | null;
@@ -17,7 +17,7 @@ class Message extends Model {
   declare updatedAt: Date;
 }
 
-Message.init(
+Notification.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -69,9 +69,9 @@ Message.init(
     },
   },
   {
-    tableName: "messages",
+    tableName: "notifications",
     sequelize,
   },
 );
 
-export default Message;
+export default Notification;

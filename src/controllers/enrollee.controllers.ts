@@ -2,10 +2,7 @@ import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
-import {
-  getAdminSubscribers,
-  getSubscribers,
-} from "../services/subscriber.services";
+import { getAdminEnrollees, getEnrollees } from "../services/enrollee.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -22,14 +19,14 @@ export const getAllSubcribers: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const subcribers = await getAdminSubscribers(
+    const subcribers = await getAdminEnrollees(
       keyword as string,
       status as string,
       offsetSize,
       newPageSize,
     );
 
-    const totalPages = await getAdminSubscribers(
+    const totalPages = await getAdminEnrollees(
       keyword as string,
       status as string,
     );
@@ -63,7 +60,7 @@ export const getUserSubcribers: RequestHandler = async (
 
     const userId = (request as CustomRequest).user.id;
 
-    const subcribers = await getSubscribers(
+    const subcribers = await getEnrollees(
       userId,
       keyword as string,
       status as string,
@@ -71,7 +68,7 @@ export const getUserSubcribers: RequestHandler = async (
       newPageSize,
     );
 
-    const totalPages = await getSubscribers(
+    const totalPages = await getEnrollees(
       userId,
       keyword as string,
       status as string,

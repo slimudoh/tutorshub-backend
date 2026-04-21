@@ -1,7 +1,7 @@
 import { Op } from "@sequelize/core";
 import Currency from "../models/currency.models";
 import { STATUS } from "../utils/constant";
-import Rate from "../models/Rate.models";
+import Rate from "../models/rate.models";
 
 export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
   let where = {};

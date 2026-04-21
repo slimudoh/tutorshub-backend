@@ -34,7 +34,7 @@ import { Users } from "../interfaces/user";
 import { createAuditLog } from "../services/auditLog.services";
 import { getNotificationSettingsByUserId } from "../services/setting.services";
 import moment from "moment";
-import { createMessage } from "../services/message.services";
+import { createNotification } from "../services/notification.services";
 
 type ExtendedOptions = Options & {
   template: string;
@@ -242,7 +242,7 @@ export const verifyEmail: RequestHandler = async (
       section: "VERIFY_EMAIL",
     });
 
-    const newMessage = `
+    const newNotification = `
    <p> We're excited to have you join our learning community. You're now one step closer to gaining new skills and achieving your goals.</p>
 
    <p>Get started by exploring your dashboard, choosing a lesson that interests you, and beginning your learning journey today.</p>
@@ -252,18 +252,18 @@ export const verifyEmail: RequestHandler = async (
 
     `;
 
-    await createMessage("Welcome!!!", newMessage, user?.id ?? "");
+    await createNotification("Welcome!!!", newNotification, user?.id ?? "");
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "NEW MESSAGE",
+      action: "NEW NOTIFICATION",
       newData: JSON.stringify({
         title: "Welcome!!!",
-        message: newMessage,
+        message: newNotification,
         receiverId: user,
         senderId: null,
       }),
-      section: "MESSAGE",
+      section: "NOTIFICATION",
     });
 
     response.status(201).json({

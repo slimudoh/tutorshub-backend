@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
-import { MESSAGE_EXCLUDED_ATTRIBUTES } from "../utils/constant";
-import Message from "../models/message.models";
+import { NOTIFICATION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import Notification from "../models/notification.models";
 import { format } from "date-fns";
 
 // settings.newLesson = notification.newLesson;
@@ -10,26 +10,29 @@ import { format } from "date-fns";
 // settings.lessonSubscribed30Minutes = notification.lessonSubscribed30Minutes;
 // settings.lessonSubscribed15Minutes = notification.lessonSubscribed15Minutes;
 // settings.lessonSubscribed5Minutes = notification.lessonSubscribed5Minutes;
-// settings.newMessage = notification.newMessage;
+// settings.newNotification = notification.newNotification;
 // settings.lessonComplete = notification.lessonComplete;
 // settings.weeklySummary = notification.weeklySummary;
 // settings.monthlySummary = notification.monthlySummary;
 
-export const findMessageById = async (id: string, excludeAttributes = true) => {
-  return await Message.findOne({
+export const findNotificationById = async (
+  id: string,
+  excludeAttributes = true,
+) => {
+  return await Notification.findOne({
     where: {
       id: id,
     },
     ...(excludeAttributes && {
       attributes: {
-        exclude: MESSAGE_EXCLUDED_ATTRIBUTES,
+        exclude: NOTIFICATION_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getUserMessages = async (
+export const getUserNotifications = async (
   userId: string,
   keyword?: string,
   status?: string,
@@ -53,12 +56,12 @@ export const getUserMessages = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Message.count({
+    return await Notification.count({
       where: { receiverId: userId, isDeleted: false, ...where },
     });
   }
 
-  return await Message.findAll({
+  return await Notification.findAll({
     where: {
       receiverId: userId,
       isDeleted: false,
@@ -69,20 +72,20 @@ export const getUserMessages = async (
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: MESSAGE_EXCLUDED_ATTRIBUTES,
+        exclude: NOTIFICATION_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const createMessage = async (
+export const createNotification = async (
   title: string,
   message: string,
   receiverId: string,
   senderId: string | null = null,
 ) => {
-  return await Message.create({
+  return await Notification.create({
     id: crypto.randomUUID(),
     senderId,
     receiverId,
@@ -93,8 +96,8 @@ export const createMessage = async (
   });
 };
 
-export const markUserMessageAsRead = async (id: string) => {
-  return await Message.update(
+export const markUserNotificationAsRead = async (id: string) => {
+  return await Notification.update(
     {
       isRead: true,
       readAt: new Date(),
@@ -108,8 +111,8 @@ export const markUserMessageAsRead = async (id: string) => {
   );
 };
 
-export const deleteUserMessage = async (id: string) => {
-  return await Message.update(
+export const deleteUserNotification = async (id: string) => {
+  return await Notification.update(
     {
       isDeleted: true,
       deletedAt: new Date(),

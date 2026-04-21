@@ -1,6 +1,32 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
+// id
+// title
+// instructor_id
+// start_time
+// duration
+// max_students
+// is_free
+// status
+
+// lessons
+// -------------------
+// id
+// title
+// instructor_id
+// is_free = true
+// credits_required = 0
+// start_time
+// duration
+// max_students
+// status
+
+// is_free = false
+// credits_required = 1
+
+// late_join_minutes INT DEFAULT 10
+
 class Lesson extends Model {
   declare id: string | null;
   declare userId: string | null;

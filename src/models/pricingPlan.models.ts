@@ -1,6 +1,13 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
+// id
+// name
+// price_usd
+// credits
+// currency_supported
+// created_at
+
 class PricingPlan extends Model {
   declare id: string | null;
   declare name: string | null;

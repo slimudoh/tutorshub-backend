@@ -3,12 +3,12 @@ import Transaction from "../models/transaction.models";
 import User from "../models/user.models";
 import { STATUS, TRANSACTION_TYPE } from "../utils/constant";
 import Currency from "../models/currency.models";
-import Subscriber from "../models/subscriber.models";
+import Enrollee from "../models/enrollee.models";
 import Review from "../models/review.models";
 
 export const getAdminOverviewData = async () => {
   const totalTransactions = await Transaction.findAll();
-  const totalSubscribers = await Subscriber.count();
+  const totalEnrollees = await Enrollee.count();
 
   const totalReviews = await Review.count();
   const totalActiveCurrencies = await Currency.count({
@@ -65,7 +65,7 @@ export const getAdminOverviewData = async () => {
     totalPayments: totalTransactions.filter(
       (transaction) => transaction.transactionType === TRANSACTION_TYPE.PAYMENT,
     ).length,
-    totalSubscribers,
+    totalEnrollees,
     totalReviews,
   };
 };
@@ -83,7 +83,7 @@ export const getUserOverviewData = async (userId: string) => {
     },
   });
 
-  const subscribers = await Subscriber.count({
+  const enrollees = await Enrollee.count({
     where: {
       userId,
     },
@@ -119,7 +119,7 @@ export const getUserOverviewData = async (userId: string) => {
       (transactions) =>
         transactions.transactionType === TRANSACTION_TYPE.PAYMENT,
     ).length,
-    subscribers,
+    enrollees,
     reviews,
   };
 };
