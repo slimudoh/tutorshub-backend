@@ -67,8 +67,6 @@ export const markNotificationAsRead: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const { id } = request.params;
 
-    console.log({ id });
-
     const message = await findNotificationById(id);
 
     if (!message) {

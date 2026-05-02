@@ -4,6 +4,7 @@ import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
   fetchAdminReviews,
+  fetchGeneralReviews,
   fetchUserReviews,
 } from "../services/review.services";
 
@@ -85,6 +86,23 @@ export const getUserReviews: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
+      data: reviews,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getGeneralReviews: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const reviews = await fetchGeneralReviews();
+
+    response.status(201).json({
       data: reviews,
     });
   } catch (err) {

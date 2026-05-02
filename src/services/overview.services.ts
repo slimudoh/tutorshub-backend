@@ -1,72 +1,71 @@
 import Lesson from "../models/lesson.models";
 import Transaction from "../models/transaction.models";
 import User from "../models/user.models";
-import { STATUS, TRANSACTION_TYPE } from "../utils/constant";
+import {
+  CATEGORY,
+  CONTACT,
+  CURRENCY,
+  LESSON,
+  TRANSACTION_TYPE,
+  USER,
+} from "../utils/constant";
 import Currency from "../models/currency.models";
 import Enrollee from "../models/enrollee.models";
 import Review from "../models/review.models";
+import Category from "../models/category.models";
+import Newsletter from "../models/newsletter.models";
+import PricingPlan from "../models/pricingPlan.models";
+import ContactMessage from "../models/ContactMessage.models";
+import AuditLog from "../models/auditLog.models";
+import { Op } from "@sequelize/core";
 
 export const getAdminOverviewData = async () => {
-  const totalTransactions = await Transaction.findAll();
-  const totalEnrollees = await Enrollee.count();
-
-  const totalReviews = await Review.count();
-  const totalActiveCurrencies = await Currency.count({
+  const transactions = await Transaction.count();
+  const enrollees = await Enrollee.count();
+  const reviews = await Review.count();
+  const currencies = await Currency.count({
     where: {
-      status: STATUS.ACTIVE,
+      status: CURRENCY.ACTIVE,
     },
   });
-  const totalUsers = await User.findAll();
-  const totalActiveUsers = totalUsers.filter(
-    (user) => user.status === STATUS.ACTIVE,
-  ).length;
-  const totalPendingUsers = totalUsers.filter(
-    (user) => user.status === STATUS.PENDING,
-  ).length;
-  const totalSuspendedUsers = totalUsers.filter(
-    (user) => user.status === STATUS.SUSPENDED,
-  ).length;
-  const totalDeactivatedUsers = totalUsers.filter(
-    (user) => user.status === STATUS.DEACTIVATED,
-  ).length;
-
-  const totalLessons = await Lesson.findAll();
-  const totalActiveLessons = totalLessons.filter(
-    (lesson) => lesson.status === STATUS.ACTIVE,
-  ).length;
-  const totalPendingLessons = totalLessons.filter(
-    (lesson) => lesson.status === STATUS.PENDING,
-  ).length;
-  const totalSuspendedLessons = totalLessons.filter(
-    (lesson) => lesson.status === STATUS.SUSPENDED,
-  ).length;
-  const totalDeactivatedLessons = totalLessons.filter(
-    (lesson) => lesson.status === STATUS.DEACTIVATED,
-  ).length;
+  const user = await User.count({
+    where: {
+      status: USER.ACTIVE,
+    },
+  });
+  const categories = await Category.count({
+    where: {
+      status: CATEGORY.ACTIVE,
+    },
+  });
+  const lessons = await Lesson.count({
+    where: {
+      status: LESSON.ACTIVE,
+    },
+  });
+  const newsletterSubscribers = await Newsletter.count();
+  const pricing = await PricingPlan.count();
+  const contactMessages = await ContactMessage.count({
+    where: {
+      status: {
+        [Op.in]: [CONTACT.NEW, CONTACT.IN_PROGRESS],
+      },
+    },
+  });
+  const auditLogs = await AuditLog.count();
 
   return {
-    totalUsers: totalUsers.length,
-    totalActiveUsers,
-    totalPendingUsers,
-    totalSuspendedUsers,
-    totalDeactivatedUsers,
-    totalLessons: totalLessons.length,
-    totalActiveLessons,
-    totalPendingLessons,
-    totalSuspendedLessons,
-    totalDeactivatedLessons,
-    totalActiveCurrencies,
-    totalEarnings: totalTransactions.filter(
-      (transaction) => transaction.transactionType === TRANSACTION_TYPE.EARNING,
-    ).length,
-    totalPayouts: totalTransactions.filter(
-      (transaction) => transaction.transactionType === TRANSACTION_TYPE.PAYOUT,
-    ).length,
-    totalPayments: totalTransactions.filter(
-      (transaction) => transaction.transactionType === TRANSACTION_TYPE.PAYMENT,
-    ).length,
-    totalEnrollees,
-    totalReviews,
+    user,
+    lessons,
+    currencies,
+    transactions,
+    enrollees,
+    reviews,
+    categories,
+    pricing,
+    newsletterSubscribers,
+    auditLogs,
+    contactMessages,
   };
 };
 
@@ -77,7 +76,7 @@ export const getUserOverviewData = async (userId: string) => {
     },
   });
 
-  const lesson = await Lesson.findAll({
+  const lesson = await Lesson.count({
     where: {
       userId,
     },
@@ -96,17 +95,7 @@ export const getUserOverviewData = async (userId: string) => {
   });
 
   return {
-    lesson: lesson.length,
-    activeLessons: lesson.filter((lesson) => lesson.status === STATUS.ACTIVE)
-      .length,
-    pendingLessons: lesson.filter((lesson) => lesson.status === STATUS.PENDING)
-      .length,
-    suspendedLessons: lesson.filter(
-      (lesson) => lesson.status === STATUS.SUSPENDED,
-    ).length,
-    deactivatedLessons: lesson.filter(
-      (lesson) => lesson.status === STATUS.DEACTIVATED,
-    ).length,
+    lesson,
     earnings: transactions.filter(
       (transactions) =>
         transactions.transactionType === TRANSACTION_TYPE.EARNING,

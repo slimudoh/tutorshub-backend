@@ -30,6 +30,7 @@ import sequelize from "../utils/db";
 class Lesson extends Model {
   declare id: string | null;
   declare userId: string | null;
+  declare categoryId: string | null;
   declare title: string | null;
   declare description: string | null;
   declare level: string | null;
@@ -50,6 +51,10 @@ Lesson.init(
       primaryKey: true,
     },
     userId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    categoryId: {
       type: DataTypes.UUID,
       allowNull: true,
     },

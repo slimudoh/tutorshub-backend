@@ -3,8 +3,13 @@ import PricingPlan from "../models/pricingPlan.models";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import { PRICING_PLAN_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 
-export const findAllPricingPlans = async () => {
+export const findAllPricingPlans = async (excludeAttributes = true) => {
   return await PricingPlan.findAll({
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES,
+      },
+    }),
     raw: true,
   });
 };

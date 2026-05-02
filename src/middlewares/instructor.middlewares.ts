@@ -14,7 +14,7 @@ interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
 
-const isAdmin: RequestHandler = async (
+const isInstructor: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -25,6 +25,7 @@ const isAdmin: RequestHandler = async (
     const authUser = await User.findOne({
       where: { id: user.id },
       attributes: { exclude: ["password"] },
+      raw: true,
     });
 
     if (!authUser?.role) {
@@ -35,7 +36,11 @@ const isAdmin: RequestHandler = async (
       return next(error);
     }
 
-    if (authUser.role !== ROLES.ADMIN && user.role !== ROLES.SUPER_ADMIN) {
+    if (
+      user.role !== ROLES.INSTRUCTOR &&
+      user.role !== ROLES.ADMIN &&
+      user.role !== ROLES.SUPER_ADMIN
+    ) {
       const error = new Error(
         "You are not authorized to view this page.",
       ) as ResponseError;
@@ -66,4 +71,4 @@ const isAdmin: RequestHandler = async (
   }
 };
 
-export default isAdmin;
+export default isInstructor;

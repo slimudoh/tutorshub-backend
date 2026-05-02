@@ -1,50 +1,43 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// id
-// name
-// price_usd
-// credits
-// currency_supported
-// created_at
-
-class PricingPlan extends Model {
+class ContactMessage extends Model {
   declare id: string | null;
+  declare userId: string | null;
   declare name: string | null;
-  declare amount: number | null;
-  declare description: string | null;
-  declare duration: number | null;
-  declare features: string[] | null;
+  declare email: string | null;
+  declare subject: string | null;
+  declare message: string | null;
   declare status: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-PricingPlan.init(
+ContactMessage.init(
   {
     id: {
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
     },
+    userId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    amount: {
-      type: DataTypes.DECIMAL(10, 2),
+    email: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
-    description: {
+    subject: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    message: {
       type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    duration: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    features: {
-      type: DataTypes.JSON,
       allowNull: true,
     },
     status: {
@@ -53,9 +46,9 @@ PricingPlan.init(
     },
   },
   {
-    tableName: "pricingPlans",
+    tableName: "contactMessages",
     sequelize,
   },
 );
 
-export default PricingPlan;
+export default ContactMessage;

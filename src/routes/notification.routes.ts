@@ -11,8 +11,8 @@ const router = Router();
 
 router.get("/", isAuth, isUser, getNotifications);
 
-router.put("/:id", isAuth, isUser, markNotificationAsRead);
+// router.put("/:id", isAuth, isUser, markNotificationAsRead);
 
-router.delete("/:id", isAuth, isUser, deleteNotification);
+// router.delete("/:id", isAuth, isUser, deleteNotification);
 
 export default router;

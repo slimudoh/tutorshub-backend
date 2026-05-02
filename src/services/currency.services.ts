@@ -1,6 +1,6 @@
 import { Op } from "@sequelize/core";
 import Currency from "../models/currency.models";
-import { STATUS } from "../utils/constant";
+import { CURRENCY } from "../utils/constant";
 import Rate from "../models/rate.models";
 
 export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
@@ -34,7 +34,7 @@ export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
 
 export const findAllActiveCurrencies = async () => {
   let currencies = await Currency.findAll({
-    where: { status: STATUS.ACTIVE },
+    where: { status: CURRENCY.ACTIVE },
     order: [["status", "ASC"]],
     raw: true,
   });
@@ -107,7 +107,7 @@ export const addAllCurrencies = async (rates: any) => {
       id: crypto.randomUUID(),
       symbol: key,
       amount: value,
-      status: STATUS.SUSPENDED,
+      status: CURRENCY.SUSPENDED,
     });
   }
 
@@ -156,7 +156,7 @@ export const updateAllCurrencies = async (rates: any) => {
 export const updateCurrenciesList = async () => {
   const currencies = await Currency.findAll({
     where: {
-      status: STATUS.ACTIVE,
+      status: CURRENCY.ACTIVE,
     },
     raw: true,
   });
@@ -174,7 +174,7 @@ export const updateCurrenciesList = async () => {
             fromCurrency: currency.symbol,
             toCurrency: key,
             amount: value,
-            status: STATUS.ACTIVE,
+            status: CURRENCY.ACTIVE,
           });
         }
       }
@@ -226,7 +226,7 @@ export const updateCurrency = async (
     {
       country,
       currency,
-      status: STATUS.ACTIVE,
+      status: CURRENCY.ACTIVE,
     },
     {
       where: { id },

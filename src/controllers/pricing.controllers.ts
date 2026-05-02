@@ -10,9 +10,9 @@ import {
   updatePricingPlanStatus,
 } from "../services/pricing.services";
 import { ResponseError } from "../interfaces";
-import { STATUS } from "../utils/constant";
 import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
+import { PRICING } from "../utils/constant";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -113,7 +113,7 @@ export const reviewAdminPricingPlan: RequestHandler = async (
       return next(error);
     }
 
-    if (status !== STATUS.ACTIVATE && status !== STATUS.SUSPEND) {
+    if (status !== PRICING.ACTIVATE && status !== PRICING.SUSPEND) {
       const error = new Error(
         "Invalid status. Please try again later.",
       ) as ResponseError;
@@ -121,7 +121,7 @@ export const reviewAdminPricingPlan: RequestHandler = async (
       return next(error);
     }
 
-    if (status === STATUS.PENDING) {
+    if (status === PRICING.PENDING) {
       const error = new Error(
         "Plan is in PENDING status. You cannot review a pending pricing plan.",
       ) as ResponseError;
@@ -138,7 +138,7 @@ export const reviewAdminPricingPlan: RequestHandler = async (
     }
 
     const newStatus =
-      status === STATUS.ACTIVATE ? STATUS.ACTIVE : STATUS.SUSPENDED;
+      status === PRICING.ACTIVATE ? PRICING.ACTIVE : PRICING.SUSPENDED;
 
     await updatePricingPlanStatus(id, newStatus);
 

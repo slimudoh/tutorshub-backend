@@ -12,10 +12,11 @@ import {
   updateUserProfile,
   updateUserStatus,
   verifyUserPassword,
+  fetchHomeInstructors,
 } from "../services/user.services";
 import { createServerError } from "../services/error.services";
 import { createAuditLog } from "../services/auditLog.services";
-import { STATUS } from "../utils/constant";
+import { USER } from "../utils/constant";
 import path from "path";
 import { findUsersSubscriptionPlans } from "../services/pricing.services";
 
@@ -132,7 +133,7 @@ export const reviewUsers: RequestHandler = async (
       return next(error);
     }
 
-    if (status !== STATUS.ACTIVATE && status !== STATUS.SUSPEND) {
+    if (status !== USER.ACTIVATE && status !== USER.SUSPEND) {
       const error = new Error(
         "Invalid status. Please try again later.",
       ) as ResponseError;
@@ -140,7 +141,7 @@ export const reviewUsers: RequestHandler = async (
       return next(error);
     }
 
-    if (status === STATUS.PENDING) {
+    if (status === USER.PENDING) {
       const error = new Error(
         "User is in PENDING status. You cannot review a pending user.",
       ) as ResponseError;
@@ -156,8 +157,7 @@ export const reviewUsers: RequestHandler = async (
       return next(error);
     }
 
-    const newStatus =
-      status === STATUS.ACTIVATE ? STATUS.ACTIVE : STATUS.SUSPENDED;
+    const newStatus = status === USER.ACTIVATE ? USER.ACTIVE : USER.SUSPENDED;
 
     await updateUserStatus(id, newStatus);
 
@@ -464,6 +464,23 @@ export const deleteUsers: RequestHandler = async (
       data: {
         ...profile,
       },
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getHomeInstructors: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const users = await fetchHomeInstructors();
+
+    response.status(201).json({
+      data: users,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

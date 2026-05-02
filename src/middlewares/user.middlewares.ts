@@ -38,6 +38,7 @@ const isUser: RequestHandler = async (
 
     if (
       user.role !== ROLES.USER &&
+      user.role !== ROLES.INSTRUCTOR &&
       user.role !== ROLES.ADMIN &&
       user.role !== ROLES.SUPER_ADMIN
     ) {

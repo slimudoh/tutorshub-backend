@@ -13,7 +13,7 @@ import {
 } from "../services/currency.services";
 import { createServerError } from "../services/error.services";
 import { ResponseError } from "../interfaces";
-import { STATUS } from "../utils/constant";
+import { CURRENCY } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
@@ -61,7 +61,7 @@ export const getCurrencyDetails: RequestHandler = async (
 
     const currency = await findCurrencyById(request.params?.id);
 
-    if (currency?.status !== STATUS.ACTIVE) {
+    if (currency?.status !== CURRENCY.ACTIVE) {
       const error = new Error(
         "Currency is not active. Please try again later",
       ) as ResponseError;
@@ -160,7 +160,7 @@ export const reviewCurrencies: RequestHandler = async (
       return next(error);
     }
 
-    if (status !== STATUS.ACTIVATE && status !== STATUS.SUSPEND) {
+    if (status !== CURRENCY.ACTIVATE && status !== CURRENCY.SUSPEND) {
       const error = new Error(
         "Invalid status. Please try again later.",
       ) as ResponseError;
@@ -168,7 +168,7 @@ export const reviewCurrencies: RequestHandler = async (
       return next(error);
     }
 
-    if (status === STATUS.PENDING) {
+    if (status === CURRENCY.PENDING) {
       const error = new Error(
         "Currency is in PENDING status. You cannot review a pending currency.",
       ) as ResponseError;
@@ -193,7 +193,7 @@ export const reviewCurrencies: RequestHandler = async (
     }
 
     const newStatus =
-      status === STATUS.ACTIVATE ? STATUS.ACTIVE : STATUS.SUSPENDED;
+      status === CURRENCY.ACTIVATE ? CURRENCY.ACTIVE : CURRENCY.SUSPENDED;
 
     await updateCurrencyStatus(id, newStatus);
 

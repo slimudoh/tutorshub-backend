@@ -11,10 +11,13 @@ import {
   getUserLessons,
   updateLessonStatus,
   getLiveLessons,
+  getActiveHomeLessons,
+  fetchLessonsByCategory,
 } from "../services/lesson.services";
-import { STATUS } from "../utils/constant";
+import { LESSON } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
+import { findCategoryBySlug } from "../services/category.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -79,7 +82,7 @@ export const reviewAdminLessons: RequestHandler = async (
       return next(error);
     }
 
-    if (status !== STATUS.ACTIVATE && status !== STATUS.SUSPEND) {
+    if (status !== LESSON.ACTIVATE && status !== LESSON.SUSPEND) {
       const error = new Error(
         "Invalid status. Please try again later.",
       ) as ResponseError;
@@ -87,7 +90,7 @@ export const reviewAdminLessons: RequestHandler = async (
       return next(error);
     }
 
-    if (status === STATUS.PENDING) {
+    if (status === LESSON.PENDING) {
       const error = new Error(
         "Lesson is in PENDING status. You cannot review a pending lesson.",
       ) as ResponseError;
@@ -104,7 +107,7 @@ export const reviewAdminLessons: RequestHandler = async (
     }
 
     const newStatus =
-      status === STATUS.ACTIVATE ? STATUS.ACTIVE : STATUS.SUSPENDED;
+      status === LESSON.ACTIVATE ? LESSON.ACTIVE : LESSON.SUSPENDED;
 
     await updateLessonStatus(id, newStatus);
 
@@ -261,6 +264,71 @@ export const getMyLessonHistory: RequestHandler = async (
           ? Math.ceil(totalPages / newPageSize)
           : 0,
       data: lessonHistories,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getHomeLessons: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const lesson = await getActiveHomeLessons();
+
+    response.status(201).json({
+      data: lesson,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getLessonsByCategory: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { slug } = request.params;
+    const { pageNumber, pageSize, keyword } = request.query;
+    const newPageNumber = Number(pageNumber);
+    const newPageSize = Number(pageSize);
+    const offsetSize = (newPageNumber - 1) * newPageSize;
+
+    const category = await findCategoryBySlug(slug);
+
+    if (!category?.id) {
+      const error = new Error("Category not found.") as ResponseError;
+      error.statusCode = 404;
+      return next(error);
+    }
+
+    const lesson = await fetchLessonsByCategory(
+      category.id,
+      keyword as string,
+      offsetSize,
+      newPageSize,
+    );
+
+    const totalPages = await fetchLessonsByCategory(
+      category.id,
+      keyword as string,
+    );
+
+    response.status(201).json({
+      currentPage: newPageNumber,
+      pageSize: newPageSize,
+      totalRecords: totalPages,
+      totalPages:
+        typeof totalPages === "number"
+          ? Math.ceil(totalPages / newPageSize)
+          : 0,
+      data: lesson,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

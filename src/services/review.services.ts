@@ -95,3 +95,17 @@ export const fetchUserReviews = async (
     raw: true,
   });
 };
+
+export const fetchGeneralReviews = async (excludeAttributes = true) => {
+  return await Review.findAll({
+    where: { isPublic: true },
+    order: [["createdAt", "DESC"]],
+    limit: 10,
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: REVIEW_EXCLUDED_ATTRIBUTES,
+      },
+    }),
+    raw: true,
+  });
+};

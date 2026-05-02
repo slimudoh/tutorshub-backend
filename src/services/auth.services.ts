@@ -2,7 +2,7 @@ import crypto from "crypto";
 import BlackListToken from "../models/blackListToken.models";
 import User from "../models/user.models";
 import jwt from "jsonwebtoken";
-import { STATUS } from "../utils/constant";
+import { USER } from "../utils/constant";
 
 export const findExpiredTokenById = async (token: string) => {
   return await BlackListToken.findOne({
@@ -33,7 +33,7 @@ export const generateEmailToken = async (user: User) => {
   const token = Math.floor(Math.random() * 900000) + 100000;
   user.token = token.toString();
   user.tokenExpiry = new Date();
-  user.tokenExpiryStatus = STATUS.ACTIVE;
+  user.tokenExpiryStatus = USER.ACTIVE;
   await user.save();
   return user;
 };

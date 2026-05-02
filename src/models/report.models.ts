@@ -1,50 +1,48 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// id
-// name
-// price_usd
-// credits
-// currency_supported
-// created_at
-
-class PricingPlan extends Model {
+class Report extends Model {
   declare id: string | null;
-  declare name: string | null;
-  declare amount: number | null;
+  declare userId: string | null;
+  declare sessionId: string | null;
+  declare reportType: string | null;
   declare description: string | null;
-  declare duration: number | null;
-  declare features: string[] | null;
+  declare incidentDate: string | null;
+  declare evidenceFile: string | null;
   declare status: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-PricingPlan.init(
+Report.init(
   {
     id: {
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
     },
-    name: {
+    userId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    sessionId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    reportType: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    amount: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-    },
     description: {
-      type: DataTypes.TEXT,
+      type: DataTypes.STRING,
       allowNull: true,
     },
-    duration: {
-      type: DataTypes.INTEGER,
+    incidentDate: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
-    features: {
-      type: DataTypes.JSON,
+    evidenceFile: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
     status: {
@@ -53,9 +51,9 @@ PricingPlan.init(
     },
   },
   {
-    tableName: "pricingPlans",
+    tableName: "reports",
     sequelize,
   },
 );
 
-export default PricingPlan;
+export default Report;

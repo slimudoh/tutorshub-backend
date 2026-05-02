@@ -1,10 +1,16 @@
 import { Router } from "express";
 import isAuth from "../middlewares/auth.middlewares";
-import isUser from "../middlewares/user.middlewares";
-import { getOverview } from "../controllers/overview.controllers";
+import isAdmin from "../middlewares/admin.middlewares";
+import isInstructor from "../middlewares/instructor.middlewares";
+import {
+  getAdminOverview,
+  getInstructorOverview,
+} from "../controllers/overview.controllers";
 
 const router = Router();
 
-router.get("/", isAuth, isUser, getOverview);
+router.get("/admin-overview", isAuth, isAdmin, getAdminOverview);
+
+router.get("/instructor-overview", isAuth, isInstructor, getInstructorOverview);
 
 export default router;

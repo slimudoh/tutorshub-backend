@@ -9,7 +9,6 @@ export const createAuditLog = async (payload: {
   section?: string;
 }) => {
   const { user, action, oldData, newData, section } = payload;
-  console.log({ user });
 
   await AuditLog.create({
     id: crypto.randomUUID(),

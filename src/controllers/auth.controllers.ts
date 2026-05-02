@@ -1,6 +1,6 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import {
-  STATUS,
+  USER,
   VERIFICATION,
   MAIL_CONFIG,
   APP_URL,
@@ -51,23 +51,9 @@ export const registerUser: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const {
-      firstName,
-      lastName,
-      emailAddress,
-      phoneCode,
-      phoneNumber,
-      password,
-    } = request.body;
+    const { firstName, lastName, emailAddress, password } = request.body;
 
-    const user = await createUser(
-      firstName,
-      lastName,
-      emailAddress,
-      phoneCode,
-      phoneNumber,
-      password,
-    );
+    const user = await createUser(firstName, lastName, emailAddress, password);
 
     const options: ExtendedOptions = {
       from: MAIL_CONFIG.sender,
@@ -75,9 +61,9 @@ export const registerUser: RequestHandler = async (
       subject: `Message from ${APP_NAME}`,
       template: "register.views",
       context: {
+        appName: APP_NAME,
         name: user.firstName,
         token: user.token,
-        appName: APP_NAME,
         year: new Date().getFullYear(),
       },
     };
@@ -154,6 +140,7 @@ export const loginUser: RequestHandler = async (
         subject: `Message from ${APP_NAME}`,
         template: "newToken.views",
         context: {
+          appName: APP_NAME,
           name: user.firstName,
           link: `${APP_URL}/email-verification/${updatedUser.token}`,
           year: new Date().getFullYear(),
@@ -192,6 +179,7 @@ export const loginUser: RequestHandler = async (
       subject: `Message from ${APP_NAME}`,
       template: "login.views",
       context: {
+        appName: APP_NAME,
         name: user.firstName,
         time: moment().format("DD/MM/YYYY HH:mm:ss"),
         year: new Date().getFullYear(),
@@ -327,6 +315,7 @@ export const forgotPassword: RequestHandler = async (
       subject: `Message from ${APP_NAME}`,
       template: "forgotPassword.views",
       context: {
+        appName: APP_NAME,
         name: user.firstName,
         token: updateUser.token,
         year: new Date().getFullYear(),
@@ -408,7 +397,7 @@ export const resendToken: RequestHandler = async (
       return next(error);
     }
 
-    if (user?.tokenExpiryStatus !== STATUS.ACTIVE) {
+    if (user?.tokenExpiryStatus !== USER.ACTIVE) {
       const error = new Error(
         "You do not have an active request that needs a token.",
       ) as ResponseError;
@@ -435,6 +424,7 @@ export const resendToken: RequestHandler = async (
       subject: `Message from ${APP_NAME}`,
       template: "newToken.views",
       context: {
+        appName: APP_NAME,
         name: user.firstName,
         token: updatedUser.token,
         year: new Date().getFullYear(),

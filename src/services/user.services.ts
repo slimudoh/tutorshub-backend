@@ -2,7 +2,7 @@ import User from "../models/user.models";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import {
-  STATUS,
+  USER,
   VERIFICATION,
   ROLES,
   USER_EXCLUDED_ATTRIBUTES,
@@ -21,18 +21,26 @@ export const deleteUserByEmail = async (emailAddress: string) => {
   });
 };
 
-export const getUserName = (firstName: string) => {
-  const timestamp = Date.now().toString(36);
-  const randomness = Math.random().toString(36).substring(2);
-  return `${firstName.toLowerCase()}-${timestamp}${randomness}`;
+export const getUserName = async (firstName: string): Promise<string> => {
+  const adjectives = ["swift", "bright", "cool", "lucky", "bold"];
+  const nouns = ["tiger", "falcon", "panda", "eagle", "wolf"];
+
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const suffix = Math.floor(100 + Math.random() * 900);
+
+  const candidate = `${firstName.toLowerCase()}_${adj}_${noun}_${suffix}`;
+
+  const exists = await User.findOne({ where: { userName: candidate } });
+  if (exists) return getUserName(firstName);
+
+  return candidate;
 };
 
 export const createUser = async (
   firstName: string,
   lastName: string,
   emailAddress: string,
-  phoneCode: string,
-  phoneNumber: string,
   password: string,
 ) => {
   const hashedPassword = await bcrypt.hash(String(password), 15);
@@ -47,13 +55,11 @@ export const createUser = async (
     emailAddress,
     password: hashedPassword,
     role: ROLES.USER,
-    status: STATUS.PENDING,
+    status: USER.PENDING,
     emailVerified: VERIFICATION.NOT_VERIFIED,
     token: token.toString(),
-    phoneCode,
-    phoneNumber,
     tokenExpiry: new Date(),
-    tokenExpiryStatus: STATUS.ACTIVE,
+    tokenExpiryStatus: USER.ACTIVE,
   });
 
   return user;
@@ -93,7 +99,7 @@ export const findUserByIdAndActiveToken = async (id: string, token: string) => {
     where: {
       id,
       token,
-      tokenExpiryStatus: STATUS.ACTIVE,
+      tokenExpiryStatus: USER.ACTIVE,
       tokenExpiry: { [Op.ne]: null },
     },
   });
@@ -108,10 +114,10 @@ export const getTokenExpiryTime = (user: User) => {
 };
 
 export const verifyUserEmailByToken = async (user: User) => {
-  user.status = STATUS.ACTIVE;
+  user.status = USER.ACTIVE;
   user.emailVerified = VERIFICATION.VERIFIED;
   user.emailVerifiedAt = new Date();
-  user.tokenExpiryStatus = STATUS.CLOSED;
+  user.tokenExpiryStatus = USER.CLOSED;
   user.tokenExpiry = null;
   await user.save();
 };
@@ -120,7 +126,7 @@ export const forgotUserPassword = async (user: User) => {
   const token = Math.floor(Math.random() * 900000) + 100000;
   user.token = token.toString();
   user.tokenExpiry = new Date();
-  user.tokenExpiryStatus = STATUS.ACTIVE;
+  user.tokenExpiryStatus = USER.ACTIVE;
   user.password = crypto.randomUUID();
   await user.save();
   return user;
@@ -129,7 +135,7 @@ export const forgotUserPassword = async (user: User) => {
 export const resetUserPassword = async (user: User, password: string) => {
   const hashedPassword = await bcrypt.hash(String(password), 15);
   user.password = hashedPassword;
-  user.tokenExpiryStatus = STATUS.CLOSED;
+  user.tokenExpiryStatus = USER.CLOSED;
   user.tokenExpiry = null;
   await user.save();
 };
@@ -217,7 +223,7 @@ export const deleteUser = async (
   reason: string,
   description: string,
 ) => {
-  await User.update({ status: STATUS.DEACTIVATED }, { where: { id } });
+  await User.update({ status: USER.DEACTIVATED }, { where: { id } });
   await DeletedAccount.create({
     id: crypto.randomUUID(),
     userId: id,
@@ -241,35 +247,35 @@ export const checkUserAccountStatus = async (status: string | null) => {
     };
   }
 
-  if (status === STATUS.DEACTIVATED) {
+  if (status === USER.DEACTIVATED) {
     return {
       message: "Your account has been deactivated. Please contact support.",
       status: 401,
     };
   }
 
-  if (status === STATUS.PENDING) {
+  if (status === USER.PENDING) {
     return {
       message: "Your account is pending.",
       status: 401,
     };
   }
 
-  if (status === STATUS.SUSPENDED) {
+  if (status === USER.SUSPENDED) {
     return {
       message: "Your account has been suspended. Please contact support.",
       status: 401,
     };
   }
 
-  if (status === STATUS.INACTIVE) {
+  if (status === USER.INACTIVE) {
     return {
       message: "Your account has been deactivated. Please contact support.",
       status: 401,
     };
   }
 
-  if (status === STATUS.BANNED) {
+  if (status === USER.BANNED) {
     return {
       message: "Your account has been banned. Please contact support.",
       status: 401,
@@ -310,6 +316,17 @@ export const checkUserEmailVerificationStatus = async (
 export const getDeletedUser = async (userId: string) => {
   return await DeletedAccount.findOne({
     where: { userId },
+    raw: true,
+  });
+};
+
+export const fetchHomeInstructors = async () => {
+  return await User.findAll({
+    where: {
+      role: ROLES.INSTRUCTOR,
+      status: USER.ACTIVE,
+    },
+    limit: 10,
     raw: true,
   });
 };

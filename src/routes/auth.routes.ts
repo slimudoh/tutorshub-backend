@@ -19,8 +19,6 @@ router.post(
   "/register",
   check("firstName").notEmpty().withMessage("Your first name is required."),
   check("lastName").notEmpty().withMessage("Your last name is required."),
-  check("phoneCode").notEmpty().withMessage("Your phone code is required."),
-  check("phoneNumber").notEmpty().withMessage("Your phone number is required."),
   check("password")
     .notEmpty()
     .withMessage("Password is required.")

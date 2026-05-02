@@ -9,7 +9,7 @@ import isUser from "../middlewares/user.middlewares";
 
 const router = Router();
 
-router.get("/admin-enrollees", isAuth, isAdmin, getAllSubcribers);
-router.get("/user-enrollees", isAuth, isUser, getUserSubcribers);
+// router.get("/admin-enrollees", isAuth, isAdmin, getAllSubcribers);
+// router.get("/user-enrollees", isAuth, isUser, getUserSubcribers);
 
 export default router;

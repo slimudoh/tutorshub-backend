@@ -1,6 +1,6 @@
 import { Op } from "sequelize";
 import Lesson from "../models/lesson.models";
-import { LESSON_EXCLUDED_ATTRIBUTES, STATUS } from "../utils/constant";
+import { LESSON_EXCLUDED_ATTRIBUTES, LESSON } from "../utils/constant";
 import LessonHistory from "../models/lessonHistory.models";
 
 export const findLessonById = async (id: string, excludeAttributes = true) => {
@@ -113,11 +113,11 @@ export const getActiveLessons = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await Lesson.count({ where: { status: STATUS.ACTIVE, ...where } });
+    return await Lesson.count({ where: { status: LESSON.ACTIVE, ...where } });
   }
 
   return await Lesson.findAll({
-    where: { status: STATUS.ACTIVE, ...where },
+    where: { status: LESSON.ACTIVE, ...where },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
@@ -181,6 +181,7 @@ export const getLessonHistories = async (
 export const getLiveLessons = async () => {
   return await Lesson.findAll({
     where: { isLive: true },
+    order: [["createdAt", "DESC"]],
     raw: true,
   });
 };
@@ -192,6 +193,55 @@ export const findAllLessonsByIds = async (ids: string[]) => {
         [Op.in]: ids,
       },
     },
+    raw: true,
+  });
+};
+
+export const getActiveHomeLessons = async (excludeAttributes = true) => {
+  return await Lesson.findAll({
+    where: { status: LESSON.ACTIVE },
+    order: [["createdAt", "DESC"]],
+    limit: 8,
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
+      },
+    }),
+    raw: true,
+  });
+};
+
+export const fetchLessonsByCategory = async (
+  categoryId: string,
+  keyword?: string,
+  offsetSize?: number,
+  newPageSize?: number,
+  excludeAttributes = true,
+) => {
+  let where = {};
+
+  if (keyword) {
+    where = {
+      [Op.or]: [{ title: { [Op.like]: `%${keyword}%` } }],
+    };
+  }
+
+  if (!offsetSize && !newPageSize) {
+    return await Lesson.count({
+      where: { categoryId, status: LESSON.ACTIVE, ...where },
+    });
+  }
+
+  return await Lesson.findAll({
+    where: { categoryId, status: LESSON.ACTIVE, ...where },
+    order: [["createdAt", "DESC"]],
+    ...(offsetSize && { offset: offsetSize }),
+    ...(newPageSize && { limit: newPageSize }),
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
+      },
+    }),
     raw: true,
   });
 };

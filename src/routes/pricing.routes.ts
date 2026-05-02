@@ -15,18 +15,18 @@ const router = Router();
 
 router.get("/", getPricingPlans);
 
-router.get("/subscription-plans", isAuth, isUser, getSubscriptionPlans);
+// router.get("/subscription-plans", isAuth, isUser, getSubscriptionPlans);
 
-router.get("/admin-pricing-plans", isAuth, isAdmin, getAdminPricingPlans);
+// router.get("/admin-pricing-plans", isAuth, isAdmin, getAdminPricingPlans);
 
-router.patch(
-  "/review-admin-pricing-plans",
-  check("id").notEmpty().withMessage("ID is required."),
-  check("status").notEmpty().withMessage("Status is required."),
-  Validate,
-  isAuth,
-  isAdmin,
-  reviewAdminPricingPlan,
-);
+// router.patch(
+//   "/review-admin-pricing-plans",
+//   check("id").notEmpty().withMessage("ID is required."),
+//   check("status").notEmpty().withMessage("Status is required."),
+//   Validate,
+//   isAuth,
+//   isAdmin,
+//   reviewAdminPricingPlan,
+// );
 
 export default router;

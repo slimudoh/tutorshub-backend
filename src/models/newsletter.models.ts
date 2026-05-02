@@ -1,34 +1,29 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class WishList extends Model {
+class Newsletter extends Model {
   declare id: string | null;
-  declare userId: string | null;
-  declare lessonId: string | null;
+  declare email: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-WishList.init(
+Newsletter.init(
   {
     id: {
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
     },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
-    lessonId: {
-      type: DataTypes.UUID,
+    email: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },
   {
-    tableName: "wishlists",
+    tableName: "newsletters",
     sequelize,
   },
 );
 
-export default WishList;
+export default Newsletter;

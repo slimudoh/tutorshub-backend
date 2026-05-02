@@ -28,27 +28,27 @@ SubscriptionPlan.init(
     },
     userId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     planId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     creditsBalance: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     startDate: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     endDate: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     status: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
   },
   {

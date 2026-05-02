@@ -7,6 +7,7 @@ class Review extends Model {
   declare lessonId: string | null;
   declare rating: number | null;
   declare comment: string | null;
+  declare isPublic: boolean | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -20,19 +21,24 @@ Review.init(
     },
     userId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     lessonId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
     },
     rating: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     comment: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: true,
+    },
+    isPublic: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
     },
   },
   {

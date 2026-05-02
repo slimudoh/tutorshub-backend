@@ -4,13 +4,16 @@ import isUser from "../middlewares/user.middlewares";
 import {
   getAdminReviews,
   getUserReviews,
+  getGeneralReviews,
 } from "../controllers/review.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
 
 const router = Router();
 
-router.get("/user-reviews", isAuth, isUser, getUserReviews);
+// router.get("/user-reviews", isAuth, isUser, getUserReviews);
 
-router.get("/admin-reviews", isAuth, isAdmin, getAdminReviews);
+// router.get("/admin-reviews", isAuth, isAdmin, getAdminReviews);
+
+router.get("/general-reviews", getGeneralReviews);
 
 export default router;

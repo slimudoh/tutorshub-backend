@@ -23,6 +23,10 @@ import pricingRouter from "./routes/pricing.routes";
 import currencyRouter from "./routes/currencies.routes";
 import enrolleeRouter from "./routes/enrollee.routes";
 import reviewRouter from "./routes/review.routes";
+import reportRouter from "./routes/report.routes";
+import newsletterRouter from "./routes/newsletter.routes";
+import categoryRouter from "./routes/category.routes";
+import contactRouter from "./routes/contact.routes";
 
 import User from "./models/user.models";
 import BlackListToken from "./models/blackListToken.models";
@@ -41,6 +45,10 @@ import Rate from "./models/rate.models";
 import Enrollee from "./models/enrollee.models";
 import Review from "./models/review.models";
 import LessonEnrollment from "./models/lessonEnrollment.models";
+import Report from "./models/report.models";
+import Newsletter from "./models/newsletter.models";
+import Category from "./models/category.models";
+import ContactMessage from "./models/ContactMessage.models";
 
 dotenv.config();
 
@@ -91,6 +99,10 @@ app.use("/api/v1/pricing", pricingRouter);
 app.use("/api/v1/currencies", currencyRouter);
 app.use("/api/v1/enrollees", enrolleeRouter);
 app.use("/api/v1/reviews", reviewRouter);
+app.use("/api/v1/reports", reportRouter);
+app.use("/api/v1/newsletters", newsletterRouter);
+app.use("/api/v1/categories", categoryRouter);
+app.use("/api/v1/contacts", contactRouter);
 
 app.use(invalidRouteHandler);
 app.use(errorHandler);
@@ -117,6 +129,10 @@ sequelize
     Enrollee.sync({ alter: true });
     Review.sync({ alter: true });
     LessonEnrollment.sync({ alter: true });
+    Report.sync({ alter: true });
+    Newsletter.sync({ alter: true });
+    Category.sync({ alter: true });
+    ContactMessage.sync({ alter: true });
 
     app.listen(PORT, () => {
       console.log(
