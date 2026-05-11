@@ -4,6 +4,8 @@ import sequelize from "../utils/db";
 class Setting extends Model {
   declare id: string | null;
   declare userId: string | null;
+  declare emailNotification: boolean | null;
+  declare pushNotification: boolean | null;
   declare login: boolean | null;
   declare newLesson: boolean | null;
   declare lessonNotSubscribed: boolean | null;
@@ -16,6 +18,14 @@ class Setting extends Model {
   declare lessonComplete: boolean | null;
   declare weeklySummary: boolean | null;
   declare monthlySummary: boolean | null;
+  declare newStudent: boolean | null;
+  declare showProfilePublicly: boolean | null;
+  declare newReview: boolean | null;
+  declare newBooking: boolean | null;
+  declare bookingReminder: boolean | null;
+  declare bookingCanceled: boolean | null;
+  declare bookingCompleted: boolean | null;
+  declare bookingRescheduled: boolean | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -30,6 +40,16 @@ Setting.init(
     userId: {
       type: DataTypes.UUID,
       allowNull: true,
+    },
+    emailNotification: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    pushNotification: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
     },
     login: {
       type: DataTypes.BOOLEAN,
@@ -87,6 +107,46 @@ Setting.init(
       defaultValue: false,
     },
     monthlySummary: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    newStudent: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    showProfilePublicly: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    newReview: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    newBooking: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    bookingReminder: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    bookingCanceled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    bookingCompleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    bookingRescheduled: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: false,

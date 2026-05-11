@@ -178,7 +178,7 @@ export const getLessonHistories = async (
   });
 };
 
-export const getLiveLessons = async () => {
+export const fetchLiveLessons = async () => {
   return await Lesson.findAll({
     where: { isLive: true },
     order: [["createdAt", "DESC"]],

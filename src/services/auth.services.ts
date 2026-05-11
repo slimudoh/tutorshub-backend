@@ -31,9 +31,18 @@ export const generateAuthToken = async (user: User) => {
 
 export const generateEmailToken = async (user: User) => {
   const token = Math.floor(Math.random() * 900000) + 100000;
-  user.token = token.toString();
-  user.tokenExpiry = new Date();
-  user.tokenExpiryStatus = USER.ACTIVE;
-  await user.save();
-  return user;
+  await User.update(
+    {
+      token: token.toString(),
+      tokenExpiry: new Date(),
+      tokenExpiryStatus: USER.ACTIVE,
+    },
+    {
+      where: {
+        id: user.id,
+      },
+    },
+  );
+
+  return token;
 };

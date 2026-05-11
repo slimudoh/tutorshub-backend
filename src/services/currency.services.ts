@@ -10,6 +10,7 @@ export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
     where = {
       [Op.or]: [
         { country: { [Op.like]: `%${keyword}%` } },
+        { countryCode: { [Op.like]: `%${keyword}%` } },
         { currency: { [Op.like]: `%${keyword}%` } },
         { symbol: { [Op.like]: `%${keyword}%` } },
       ],
@@ -219,12 +220,14 @@ export const updateCurrencyStatus = async (id: string, status: string) => {
 
 export const updateCurrency = async (
   country: string,
+  countryCode: string,
   currency: string,
   id: string,
 ) => {
   return await Currency.update(
     {
       country,
+      countryCode,
       currency,
       status: CURRENCY.ACTIVE,
     },
@@ -232,4 +235,85 @@ export const updateCurrency = async (
       where: { id },
     },
   );
+};
+
+export const getUserCurrency = async (request: any) => {
+  const location = request.header("Location");
+
+  if (location) {
+    const currency = await Currency.findOne({
+      where: {
+        countryCode: location,
+        status: CURRENCY.ACTIVE,
+      },
+      raw: true,
+    });
+
+    if (currency) {
+      return currency?.symbol;
+    }
+  }
+
+  const currency = await Currency.findOne({
+    where: {
+      symbol: "USD",
+      status: CURRENCY.ACTIVE,
+    },
+    raw: true,
+  });
+
+  return currency ? currency?.symbol : "USD";
+};
+
+export const convertSingleCurrency = async (
+  payload: {
+    amount: number;
+    currency: string;
+  },
+  userCurrency: string,
+) => {
+  const rates = await Rate.findAll({
+    raw: true,
+  });
+
+  for (const rate of rates) {
+    if (rate?.amount && userCurrency) {
+      if (
+        userCurrency === rate?.toCurrency &&
+        payload.currency === rate?.fromCurrency
+      ) {
+        payload.currency = userCurrency;
+        payload.amount = payload?.amount
+          ? Number((Number(rate.amount) * payload.amount).toFixed(2))
+          : 0;
+      }
+    }
+  }
+
+  return payload;
+};
+
+export const convertMultipleCurrencies = async (
+  payload: any[],
+  userCurrency: any,
+) => {
+  const rates = await Rate.findAll({
+    raw: true,
+  });
+
+  for (const rate of rates) {
+    for (const item of payload) {
+      if (rate?.amount && userCurrency) {
+        if (
+          userCurrency === rate?.toCurrency &&
+          item.currency === rate?.fromCurrency
+        ) {
+          item.currency = userCurrency;
+          item.amount = (Number(rate.amount) * item.amount).toFixed(2);
+        }
+      }
+    }
+  }
+
+  return payload;
 };

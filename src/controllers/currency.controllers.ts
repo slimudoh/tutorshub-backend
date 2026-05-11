@@ -201,13 +201,13 @@ export const reviewCurrencies: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: newStatus,
+      action: "REVIEW CURRENCY",
       oldData: JSON.stringify(currency),
       newData: JSON.stringify({
         ...currency,
         status: newStatus,
       }),
-      section: "REVIEW CURRENCY",
+      section: "CURRENCY",
     });
 
     response.status(201).json({
@@ -225,9 +225,9 @@ export const updateCurrencies: RequestHandler = async (
   next: NextFunction,
 ): Promise<any> => {
   try {
-    const { id, country, currency } = request.body;
+    const { id, country, countryCode, currency } = request.body;
 
-    await updateCurrency(country, currency, id);
+    await updateCurrency(country, countryCode, currency, id);
 
     response.status(201).json({
       message: "Currency added successfully.",

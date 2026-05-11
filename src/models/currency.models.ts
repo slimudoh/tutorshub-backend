@@ -4,6 +4,7 @@ import sequelize from "../utils/db";
 class Currency extends Model {
   declare id: string | null;
   declare country: string | null;
+  declare countryCode: string | null;
   declare currency: string | null;
   declare symbol: string | null;
   declare amount: string | null;
@@ -20,6 +21,10 @@ Currency.init(
       primaryKey: true,
     },
     country: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    countryCode: {
       type: DataTypes.STRING,
       allowNull: true,
     },

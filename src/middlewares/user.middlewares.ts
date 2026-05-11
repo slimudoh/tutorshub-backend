@@ -1,12 +1,12 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
-import User from "../models/user.models";
 import { ROLES } from "../utils/constant";
 import { Users } from "../interfaces/user";
 import { ResponseError } from "../interfaces";
 import {
   checkUserAccountStatus,
   checkUserEmailVerificationStatus,
+  findUserById,
 } from "../services/user.services";
 import { createServerError } from "../services/error.services";
 
@@ -22,11 +22,13 @@ const isUser: RequestHandler = async (
   try {
     const user = (request as CustomRequest).user;
 
-    const authUser = await User.findOne({
-      where: { id: user.id },
-      attributes: { exclude: ["password"] },
-      raw: true,
-    });
+    if (!user?.id) {
+      const error = new Error("You are not logged in.") as ResponseError;
+      error.statusCode = 401;
+      return next(error);
+    }
+
+    const authUser = await findUserById(user.id, false);
 
     if (!authUser?.role) {
       const error = new Error(
@@ -37,10 +39,10 @@ const isUser: RequestHandler = async (
     }
 
     if (
-      user.role !== ROLES.USER &&
-      user.role !== ROLES.INSTRUCTOR &&
-      user.role !== ROLES.ADMIN &&
-      user.role !== ROLES.SUPER_ADMIN
+      authUser.role !== ROLES.USER &&
+      authUser.role !== ROLES.INSTRUCTOR &&
+      authUser.role !== ROLES.ADMIN &&
+      authUser.role !== ROLES.SUPER_ADMIN
     ) {
       const error = new Error(
         "You are not authorized to view this page.",

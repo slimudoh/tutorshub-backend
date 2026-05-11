@@ -2,18 +2,24 @@ import { Op } from "sequelize";
 import { NOTIFICATION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import Notification from "../models/notification.models";
 import { format } from "date-fns";
+import { getNotificationSettingsByUserId } from "./setting.services";
 
-// settings.newLesson = notification.newLesson;
-// settings.lessonNotSubscribed = notification.lessonNotSubscribed;
-// settings.lessonSubscribed1Day = notification.lessonSubscribed1Day;
-// settings.lessonSubscribed1Hour = notification.lessonSubscribed1Hour;
-// settings.lessonSubscribed30Minutes = notification.lessonSubscribed30Minutes;
-// settings.lessonSubscribed15Minutes = notification.lessonSubscribed15Minutes;
-// settings.lessonSubscribed5Minutes = notification.lessonSubscribed5Minutes;
-// settings.newNotification = notification.newNotification;
-// settings.lessonComplete = notification.lessonComplete;
-// settings.weeklySummary = notification.weeklySummary;
-// settings.monthlySummary = notification.monthlySummary;
+//   newClass: boolean;
+//   classNotSubscribed: boolean;
+//   classSubscribed1Day: boolean;
+//   classSubscribed1Hour: boolean;
+//   classSubscribed30Minutes: boolean;
+//   classSubscribed15Minutes: boolean;
+//   classSubscribed5Minutes: boolean;
+//   classComplete: boolean;
+//   weeklySummary: boolean;
+//   monthlySummary: boolean;
+//   newReview: boolean;
+//   newBooking: boolean;
+//   bookingReminder: boolean;
+//   bookingCanceled: boolean;
+//   bookingCompleted: boolean;
+//   bookingRescheduled: boolean;
 
 export const findNotificationById = async (
   id: string,
@@ -85,6 +91,12 @@ export const createNotification = async (
   receiverId: string,
   senderId: string | null = null,
 ) => {
+  const userSetting = await getNotificationSettingsByUserId(receiverId);
+
+  if (!userSetting?.pushNotification) {
+    return;
+  }
+
   return await Notification.create({
     id: crypto.randomUUID(),
     senderId,

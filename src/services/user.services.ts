@@ -9,8 +9,6 @@ import {
 } from "../utils/constant";
 import { Op } from "sequelize";
 import moment from "moment";
-import path from "path";
-import fs from "fs";
 import DeletedAccount from "../models/deletedAccount.models";
 
 export const deleteUserByEmail = async (emailAddress: string) => {
@@ -33,7 +31,6 @@ export const getUserName = async (firstName: string): Promise<string> => {
 
   const exists = await User.findOne({ where: { userName: candidate } });
   if (exists) return getUserName(firstName);
-
   return candidate;
 };
 
@@ -44,7 +41,7 @@ export const createUser = async (
   password: string,
 ) => {
   const hashedPassword = await bcrypt.hash(String(password), 15);
-  const userName = getUserName(firstName);
+  const userName = await getUserName(firstName);
   const token = Math.floor(Math.random() * 900000) + 100000;
 
   const user = await User.create({
@@ -186,6 +183,19 @@ export const getAllUsers = async (
   });
 };
 
+export const getAllActiveAdminUsers = async () => {
+  return await User.findAll({
+    where: {
+      role: ROLES.ADMIN,
+      status: USER.ACTIVE,
+    },
+    raw: true,
+    attributes: {
+      exclude: USER_EXCLUDED_ATTRIBUTES,
+    },
+  });
+};
+
 export const updateUserStatus = async (id: string, status: string) => {
   await User.update({ status }, { where: { id } });
 };
@@ -208,14 +218,6 @@ export const getUserProfile = (userProfile: User) => {
     country: userProfile?.country ?? "",
     address: userProfile?.address ?? "",
   };
-};
-
-export const deleteUserAvatar = async (filename: string) => {
-  const filePath = path.join(__dirname, "../../uploads", filename);
-
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
 };
 
 export const deleteUser = async (
@@ -250,13 +252,6 @@ export const checkUserAccountStatus = async (status: string | null) => {
   if (status === USER.DEACTIVATED) {
     return {
       message: "Your account has been deactivated. Please contact support.",
-      status: 401,
-    };
-  }
-
-  if (status === USER.PENDING) {
-    return {
-      message: "Your account is pending.",
       status: 401,
     };
   }

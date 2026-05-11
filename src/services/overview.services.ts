@@ -6,6 +6,7 @@ import {
   CONTACT,
   CURRENCY,
   LESSON,
+  REPORT,
   TRANSACTION_TYPE,
   USER,
 } from "../utils/constant";
@@ -18,6 +19,7 @@ import PricingPlan from "../models/pricingPlan.models";
 import ContactMessage from "../models/ContactMessage.models";
 import AuditLog from "../models/auditLog.models";
 import { Op } from "@sequelize/core";
+import Report from "../models/report.models";
 
 export const getAdminOverviewData = async () => {
   const transactions = await Transaction.count();
@@ -52,6 +54,14 @@ export const getAdminOverviewData = async () => {
       },
     },
   });
+  const reports = await Report.count({
+    where: {
+      status: {
+        [Op.in]: [REPORT.PENDING, REPORT.UNDER_REVIEW],
+      },
+    },
+  });
+
   const auditLogs = await AuditLog.count();
 
   return {
@@ -66,6 +76,7 @@ export const getAdminOverviewData = async () => {
     newsletterSubscribers,
     auditLogs,
     contactMessages,
+    reports,
   };
 };
 

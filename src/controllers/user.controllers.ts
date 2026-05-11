@@ -4,7 +4,6 @@ import { Users } from "../interfaces/user";
 import { ResponseError } from "../interfaces";
 import {
   deleteUser,
-  deleteUserAvatar,
   findUserById,
   getDeletedUser,
   getAllUsers,
@@ -19,6 +18,8 @@ import { createAuditLog } from "../services/auditLog.services";
 import { USER } from "../utils/constant";
 import path from "path";
 import { findUsersSubscriptionPlans } from "../services/pricing.services";
+import { getUserCurrency } from "../services/currency.services";
+import { deleteFile } from "../utils/file";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -102,12 +103,32 @@ export const getProfile: RequestHandler = async (
       return next(error);
     }
 
+    const userCurrency = await getUserCurrency(request);
+
     const profile = getUserProfile(userProfile);
 
     response.status(201).json({
       data: {
-        ...profile,
+        profile,
+        currency: userCurrency,
       },
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getCurrency: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userCurrency = await getUserCurrency(request);
+
+    response.status(201).json({
+      data: userCurrency,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -163,13 +184,13 @@ export const reviewUsers: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
-      action: newStatus,
+      action: "REVIEW USER",
       oldData: JSON.stringify(targetUser),
       newData: JSON.stringify({
         ...targetUser,
         status: newStatus,
       }),
-      section: "REVIEW USER",
+      section: "USER",
     });
 
     response.status(201).json({
@@ -207,7 +228,7 @@ export const removeAvatar: RequestHandler = async (
       return next(error);
     }
 
-    await deleteUserAvatar(targetUser.avatar);
+    await deleteFile(targetUser.avatar);
 
     await updateUserProfile(user.id, {
       avatar: null,
@@ -220,7 +241,7 @@ export const removeAvatar: RequestHandler = async (
       action: "REMOVE AVATAR",
       oldData: JSON.stringify(targetUser),
       newData: JSON.stringify(userProfile),
-      section: "USER PROFILE",
+      section: "USER",
     });
 
     if (!userProfile) {
@@ -294,7 +315,7 @@ export const updateProfile: RequestHandler = async (
       action: "UPDATE PROFILE",
       oldData: JSON.stringify(targetUser),
       newData: JSON.stringify(userProfile),
-      section: "USER PROFILE",
+      section: "USER",
     });
 
     if (!userProfile) {
@@ -338,7 +359,7 @@ export const updateAvatar: RequestHandler = async (
     }
 
     if (targetUser?.avatar) {
-      await deleteUserAvatar(targetUser.avatar);
+      await deleteFile(targetUser.avatar);
     }
 
     const file = request.file;
@@ -362,7 +383,7 @@ export const updateAvatar: RequestHandler = async (
       action: "UPDATE AVATAR",
       oldData: JSON.stringify(targetUser),
       newData: JSON.stringify(userProfile),
-      section: "USER PROFILE",
+      section: "USER",
     });
 
     if (!userProfile) {
@@ -446,7 +467,7 @@ export const deleteUsers: RequestHandler = async (
         reason,
         description,
       }),
-      section: "USER PROFILE",
+      section: "USER",
     });
 
     if (!userProfile) {

@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 
 const ALLOWED_TYPES: Record<string, string[]> = {
   "image/jpeg": [".jpg", ".jpeg"],
@@ -48,3 +49,11 @@ export const imageUpload = multer({
 //     cb(null, true);
 //   },
 // });
+
+export const deleteFile = async (filename: string) => {
+  const filePath = path.join(__dirname, "../../uploads", filename);
+
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};

@@ -8,22 +8,19 @@ import {
 } from "../services/contact.services";
 import { Users } from "../interfaces/user";
 import { JwtPayload } from "jsonwebtoken";
-import { findUserById } from "../services/user.services";
+import {
+  findUserById,
+  getAllActiveAdminUsers,
+} from "../services/user.services";
 import { ResponseError } from "../interfaces";
 import { createAuditLog } from "../services/auditLog.services";
-import { Options } from "nodemailer/lib/mailer";
-import { sendMail } from "../services/email.services";
-import { APP_NAME, CONTACT, MAIL_CONFIG } from "../utils/constant";
+import { sendMultipleMails, sendSingleMail } from "../services/email.services";
+import { CONTACT, MAIL_CONFIG } from "../utils/constant";
 import { createNotification } from "../services/notification.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
-
-type ExtendedOptions = Options & {
-  template: string;
-  context: Record<string, unknown>;
-};
 
 export const createGuestContactMessage: RequestHandler = async (
   request: Request,
@@ -50,22 +47,36 @@ export const createGuestContactMessage: RequestHandler = async (
       message: "Message sent successfully",
     });
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: email,
-      subject: `Message from ${APP_NAME}`,
-      template: "contact.views",
       context: {
-        appName: APP_NAME,
+        title: "We received your message.",
         name,
-        email,
-        subject,
-        message,
-        year: new Date().getFullYear(),
+        message:
+          "Thank you for reaching out to us. We have received your message and appreciate you taking the time to contact us. Our team will review your inquiry and get back to you as soon as possible.",
       },
-    };
+      subject: `We received your message.`,
+      template: "userNotification.views",
+    });
 
-    sendMail(options);
+    const adminUsers = await getAllActiveAdminUsers();
+
+    await sendMultipleMails({
+      from: MAIL_CONFIG.sender,
+      dataList: adminUsers.map((adminUser) => {
+        return {
+          name: adminUser?.firstName || "",
+          email: adminUser?.emailAddress || "",
+        };
+      }),
+      context: {
+        title: "New contact message",
+        message: `New contact message from ${name}. Please check the contact messages section of the admin dashboard for more details.`,
+      },
+      subject: `New contact message from ${name}`,
+      template: "adminNotification.views",
+    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -106,6 +117,7 @@ export const createUserContactMessage: RequestHandler = async (
       newData: JSON.stringify(contactMessage),
       section: "CONTACT MESSAGE",
     });
+
     const newNotification = `
         <p>
           Thank you for reaching out to us. We have received your message and appreciate you
@@ -136,22 +148,36 @@ export const createUserContactMessage: RequestHandler = async (
       message: "Message sent successfully",
     });
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: user.emailAddress,
-      subject: `Message from ${APP_NAME}`,
-      template: "contact.views",
       context: {
-        appName: APP_NAME,
-        name: user.firstName + " " + user.lastName,
-        email: user.emailAddress,
-        subject,
-        message,
-        year: new Date().getFullYear(),
+        title: "We received your message.",
+        name: user.firstName,
+        message:
+          "Thank you for reaching out to us. We have received your message and appreciate you taking the time to contact us. Our team will review your inquiry and get back to you as soon as possible.",
       },
-    };
+      subject: `We received your message.`,
+      template: "userNotification.views",
+    });
 
-    sendMail(options);
+    const adminUsers = await getAllActiveAdminUsers();
+
+    await sendMultipleMails({
+      from: MAIL_CONFIG.sender,
+      dataList: adminUsers.map((adminUser) => {
+        return {
+          name: adminUser?.firstName || "",
+          email: adminUser?.emailAddress || "",
+        };
+      }),
+      context: {
+        title: "New contact message",
+        message: `New contact message from ${user.firstName + " " + user.lastName}. Please check the contact messages section of the admin dashboard for more details.`,
+      },
+      subject: `New contact message from ${user.firstName + " " + user.lastName}`,
+      template: "adminNotification.views",
+    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -222,7 +248,7 @@ export const reviewContactMessages: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { id, status } = request.body;
+    const { id, status, comment } = request.body;
 
     const user = (request as CustomRequest).user;
 
@@ -271,17 +297,60 @@ export const reviewContactMessages: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
-      action: status,
+      action: "REVIEW CONTACT MESSAGE",
       oldData: JSON.stringify(targetMessage),
       newData: JSON.stringify({
         ...targetMessage,
-        status: status,
+        status,
+        comment,
       }),
-      section: "REVIEW CONTACT MESSAGE",
+      section: "CONTACT MESSAGE",
+    });
+
+    const newNotification = `
+        <p>
+          Your message has been reviewed and the status has been updated to ${status}.
+        </p>
+        <p>${comment}</p>
+      `;
+
+    await createNotification(
+      "Contact Message Reviewed",
+      newNotification,
+      targetUser?.id ?? "",
+    );
+
+    await createAuditLog({
+      user: JSON.stringify(targetUser),
+      action: "NEW NOTIFICATION",
+      newData: JSON.stringify({
+        title: "Contact Message Reviewed",
+        message: newNotification,
+        receiverId: targetUser?.id ?? "",
+        senderId: null,
+      }),
+      section: "NOTIFICATION",
     });
 
     response.status(201).json({
       message: "Message reviewed successfully.",
+    });
+
+    sendSingleMail({
+      from: MAIL_CONFIG.sender,
+      to: targetUser?.emailAddress || "",
+      context: {
+        title: "Message Reviewed",
+        name: targetUser?.firstName || "",
+        message:
+          "Your message has been reviewed and the status has been updated to " +
+          status +
+          "." +
+          " " +
+          comment,
+      },
+      subject: `Message Reviewed`,
+      template: "userNotification.views",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

@@ -1,3 +1,5 @@
+import { CANCELLED } from "dns";
+
 export const ROLES = {
   USER: "USER",
   INSTRUCTOR: "INSTRUCTOR",
@@ -38,13 +40,6 @@ export const PRICING = {
   SUSPENDED: "SUSPENDED",
 };
 
-export const REPORT = {
-  PENDING: "PENDING",
-  UNDER_REVIEW: "UNDER_REVIEW",
-  RESOLVED: "RESOLVED",
-  REJECTED: "REJECTED",
-};
-
 export const CURRENCY = {
   ACTIVE: "ACTIVE",
   SUSPENDED: "SUSPENDED",
@@ -79,15 +74,11 @@ export const CONTACT = {
   CLOSED: "CLOSED",
 };
 
-export const MAIL_CONFIG = {
-  sender: "no-reply@one-block.org",
-  email: "no-reply@one-block.org",
-  password: "P8B(8b]z37d[",
-  host: "mail.one-block.org",
-  // sender: "hello@companyqat.com",
-  // email: "hello@ribigifts.com",
-  // password: "Summytwe1234)(&2",
-  // host: "mail.ribigifts.com",
+export const REPORT = {
+  PENDING: "PENDING",
+  UNDER_REVIEW: "UNDER_REVIEW",
+  RESOLVED: "RESOLVED",
+  REJECTED: "REJECTED",
 };
 
 export const LESSON_LEVEL = {
@@ -95,6 +86,24 @@ export const LESSON_LEVEL = {
   INTERMEDIATE: "INTERMEDIATE",
   ADVANCED: "ADVANCED",
   ALL: "ALL",
+};
+
+export const PLAN_BILLING_CYCLE = {
+  MONTHLY: "MONTHLY",
+  YEARLY: "YEARLY",
+};
+
+export const SUBSCRIPTION = {
+  ACTIVE: "ACTIVE",
+  CANCELED: "CANCELED",
+  EXPIRED: "EXPIRED",
+  CANCEL: "CANCEL",
+};
+
+export const LESSON_ENROLLMENT = {
+  ACTIVE: "ACTIVE",
+  CANCELLED: "CANCELLED",
+  COMPLETED: "COMPLETED",
 };
 
 export const USER_EXCLUDED_ATTRIBUTES = [
@@ -105,6 +114,8 @@ export const USER_EXCLUDED_ATTRIBUTES = [
   "tokenExpiry",
   "tokenExpiryStatus",
 ];
+
+export const CONTACT_EXCLUDED_ATTRIBUTES = ["userId"];
 
 export const LESSON_EXCLUDED_ATTRIBUTES = [];
 
@@ -118,4 +129,15 @@ export const ENROLLEE_EXCLUDED_ATTRIBUTES = [];
 
 export const REVIEW_EXCLUDED_ATTRIBUTES = [];
 
-export const CONTACT_EXCLUDED_ATTRIBUTES = ["userId"];
+export const REPORT_EXCLUDED_ATTRIBUTES = [];
+
+export const MAIL_CONFIG = {
+  sender: "no-reply@one-block.org",
+  email: "no-reply@one-block.org",
+  password: "P8B(8b]z37d[",
+  host: "mail.one-block.org",
+  // sender: "hello@companyqat.com",
+  // email: "hello@ribigifts.com",
+  // password: "Summytwe1234)(&2",
+  // host: "mail.ribigifts.com",
+};

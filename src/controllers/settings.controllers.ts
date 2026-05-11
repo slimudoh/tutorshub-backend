@@ -25,20 +25,7 @@ export const getUserSettings: RequestHandler = async (
     const settings = await getNotificationSettingsByUserId(userId);
 
     response.status(201).json({
-      data: {
-        login: settings?.login || false,
-        newLesson: settings?.newLesson || false,
-        lessonNotSubscribed: settings?.lessonNotSubscribed || false,
-        lessonSubscribed1Day: settings?.lessonSubscribed1Day || false,
-        lessonSubscribed1Hour: settings?.lessonSubscribed1Hour || false,
-        lessonSubscribed30Minutes: settings?.lessonSubscribed30Minutes || false,
-        lessonSubscribed15Minutes: settings?.lessonSubscribed15Minutes || false,
-        lessonSubscribed5Minutes: settings?.lessonSubscribed5Minutes || false,
-        newMessage: settings?.newMessage || false,
-        lessonComplete: settings?.lessonComplete || false,
-        weeklySummary: settings?.weeklySummary || false,
-        monthlySummary: settings?.monthlySummary || false,
-      },
+      data: settings,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -67,7 +54,7 @@ export const updateNotificationSettings: RequestHandler = async (
         action: "UPDATE NOTIFICATION SETTINGS",
         oldData: JSON.stringify(settings),
         newData: JSON.stringify(updatedSettings),
-        section: "NOTIFICATION SETTINGS",
+        section: "SETTINGS",
       });
     } else {
       await createNotificationSettingsByUserId(userId, notification);
@@ -76,29 +63,13 @@ export const updateNotificationSettings: RequestHandler = async (
         user: JSON.stringify(targetUser),
         action: "CREATE NOTIFICATION SETTINGS",
         newData: JSON.stringify(updatedSettings),
-        section: "NOTIFICATION SETTINGS",
+        section: "SETTINGS",
       });
     }
 
     response.status(201).json({
       message: "Notification settings updated successfully",
-      data: {
-        login: updatedSettings?.login || false,
-        newLesson: updatedSettings?.newLesson || false,
-        lessonNotSubscribed: updatedSettings?.lessonNotSubscribed || false,
-        lessonSubscribed1Day: updatedSettings?.lessonSubscribed1Day || false,
-        lessonSubscribed1Hour: updatedSettings?.lessonSubscribed1Hour || false,
-        lessonSubscribed30Minutes:
-          updatedSettings?.lessonSubscribed30Minutes || false,
-        lessonSubscribed15Minutes:
-          updatedSettings?.lessonSubscribed15Minutes || false,
-        lessonSubscribed5Minutes:
-          updatedSettings?.lessonSubscribed5Minutes || false,
-        newMessage: updatedSettings?.newMessage || false,
-        lessonComplete: updatedSettings?.lessonComplete || false,
-        weeklySummary: updatedSettings?.weeklySummary || false,
-        monthlySummary: updatedSettings?.monthlySummary || false,
-      },
+      data: updatedSettings,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

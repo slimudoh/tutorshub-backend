@@ -4,7 +4,7 @@ import {
   getAllUserLessons,
   getAllLessons,
   reviewAdminLessons,
-  getLiveSessionsLessons,
+  getLiveLessons,
   getMyLessonHistory,
   getHomeLessons,
   getLessonsByCategory,
@@ -21,7 +21,7 @@ const router = Router();
 
 router.get("/categories/:slug", getLessonsByCategory);
 
-router.get("/live-sessions", getLiveSessionsLessons);
+router.get("/live", getLiveLessons);
 
 // router.get("/admin", isAuth, isAdmin, getAllLessons);
 

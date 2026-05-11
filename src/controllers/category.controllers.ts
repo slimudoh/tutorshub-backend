@@ -17,6 +17,7 @@ import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
+import { deleteFile } from "../utils/file";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -178,13 +179,13 @@ export const reviewAdminCategories: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
-      action: newStatus,
+      action: "REVIEW CATEGORY",
       oldData: JSON.stringify(category),
       newData: JSON.stringify({
         ...category,
         status: newStatus,
       }),
-      section: "REVIEW CATEGORY",
+      section: "CATEGORY",
     });
 
     response.status(201).json({
@@ -240,7 +241,7 @@ export const createCategory: RequestHandler = async (
       user: JSON.stringify(targetUser),
       action: "CREATE CATEGORY",
       newData: JSON.stringify(category),
-      section: "CREATE CATEGORY",
+      section: "CATEGORY",
     });
 
     response.status(201).json({
@@ -285,7 +286,22 @@ export const updateCategory: RequestHandler = async (
       return next(error);
     }
 
-    await updateCurrentCategory(id, {
+    const existingCategoryByName = await findCategoryByTitle(title);
+
+    if (existingCategoryByName && existingCategoryByName.id !== id) {
+      const error = new Error(
+        `Category with this name ${title} already exists.`,
+      ) as ResponseError;
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    if (file?.filename && category?.image) {
+      await deleteFile(category.image);
+    }
+
+    const updatedCategory = await updateCurrentCategory({
+      id,
       title,
       slug,
       description,
@@ -299,14 +315,8 @@ export const updateCategory: RequestHandler = async (
       user: JSON.stringify(targetUser),
       action: "UPDATE CATEGORY",
       oldData: JSON.stringify(category),
-      newData: JSON.stringify({
-        ...category,
-        title,
-        slug,
-        description,
-        image: file?.filename || category?.image || null,
-      }),
-      section: "UPDATE CATEGORY",
+      newData: JSON.stringify(updatedCategory),
+      section: "CATEGORY",
     });
 
     response.status(201).json({

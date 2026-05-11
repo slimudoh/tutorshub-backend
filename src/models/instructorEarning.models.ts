@@ -1,24 +1,25 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class LessonEnrollment extends Model {
+class InstructorEarning extends Model {
   declare id: string | null;
-  declare userId: string | null;
+  declare instructorId: string | null;
   declare lessonId: string | null;
-  declare creditsUsed: number | null;
+  declare studentsCount: number | null;
+  declare amount: number | null;
   declare status: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-LessonEnrollment.init(
+InstructorEarning.init(
   {
     id: {
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
     },
-    userId: {
+    instructorId: {
       type: DataTypes.UUID,
       allowNull: true,
     },
@@ -26,8 +27,12 @@ LessonEnrollment.init(
       type: DataTypes.UUID,
       allowNull: true,
     },
-    creditsUsed: {
+    studentsCount: {
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    amount: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
     status: {
@@ -36,9 +41,9 @@ LessonEnrollment.init(
     },
   },
   {
-    tableName: "lessonEnrollments",
+    tableName: "instructorEarnings",
     sequelize,
   },
 );
 
-export default LessonEnrollment;
+export default InstructorEarning;

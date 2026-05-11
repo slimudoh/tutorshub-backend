@@ -8,10 +8,9 @@ import {
   forgotPassword,
   resetPassword,
 } from "../controllers/auth.controllers";
-import User from "../models/user.models";
 import { check } from "express-validator";
 import Validate from "../middlewares/validate.middlewares";
-import isAuth from "../middlewares/auth.middlewares";
+import { findUserByEmail } from "../services/user.services";
 
 const router = Router();
 
@@ -32,10 +31,7 @@ router.post(
     .withMessage("Please enter a valid e-mail address.")
     .normalizeEmail()
     .custom(async (value) => {
-      const user = await User.findOne({
-        where: { emailAddress: value },
-        attributes: ["emailAddress"],
-      });
+      const user = await findUserByEmail(value);
       if (user) {
         throw new Error("Email address already taken.");
       }
@@ -53,10 +49,7 @@ router.post(
     .withMessage("Please enter a valid e-mail address.")
     .normalizeEmail()
     .custom(async (value) => {
-      const user = await User.findOne({
-        where: { emailAddress: value },
-        attributes: ["emailAddress"],
-      });
+      const user = await findUserByEmail(value);
       if (!user) {
         throw new Error("Email address not found.");
       }
@@ -90,10 +83,7 @@ router.post(
     .withMessage("Please enter a valid e-mail address.")
     .normalizeEmail()
     .custom(async (value) => {
-      const user = await User.findOne({
-        where: { emailAddress: value },
-        attributes: ["emailAddress"],
-      });
+      const user = await findUserByEmail(value);
       if (!user) {
         throw new Error("Email address not found.");
       }
@@ -120,6 +110,6 @@ router.post(
 
 router.get("/resend-token/:id", resendToken);
 
-router.get("/logout", isAuth, logoutUser);
+router.get("/logout", logoutUser);
 
 export default router;

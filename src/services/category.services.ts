@@ -115,16 +115,14 @@ export const createNewCategory = async (data: {
   });
 };
 
-export const updateCurrentCategory = async (
-  id: string,
-  data: {
-    title: string;
-    slug: string;
-    description: string;
-    userId: string;
-    image: string | null;
-  },
-) => {
+export const updateCurrentCategory = async (data: {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  userId: string;
+  image: string | null;
+}) => {
   return await Category.update(
     {
       title: data.title,
@@ -133,6 +131,6 @@ export const updateCurrentCategory = async (
       image: data.image,
       userId: data.userId,
     },
-    { where: { id } },
+    { where: { id: data.id } },
   );
 };

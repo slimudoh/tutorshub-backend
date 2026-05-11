@@ -1,12 +1,5 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import {
-  USER,
-  VERIFICATION,
-  MAIL_CONFIG,
-  APP_URL,
-  APP_NAME,
-} from "../utils/constant";
-import { Options } from "nodemailer/lib/mailer";
+import { USER, VERIFICATION, MAIL_CONFIG, APP_NAME } from "../utils/constant";
 import { ResponseError } from "../interfaces";
 import {
   checkUserAccountStatus,
@@ -21,7 +14,7 @@ import {
   resetUserPassword,
   verifyUserEmailByToken,
 } from "../services/user.services";
-import { sendMail } from "../services/email.services";
+import { sendSingleMail } from "../services/email.services";
 import {
   createBlackListToken,
   findExpiredTokenById,
@@ -29,21 +22,18 @@ import {
   generateEmailToken,
 } from "../services/auth.services";
 import { createServerError } from "../services/error.services";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createAuditLog } from "../services/auditLog.services";
-import { getNotificationSettingsByUserId } from "../services/setting.services";
+import {
+  createNotificationSettingsByUserId,
+  getNotificationSettingsByUserId,
+} from "../services/setting.services";
 import moment from "moment";
 import { createNotification } from "../services/notification.services";
-
-type ExtendedOptions = Options & {
-  template: string;
-  context: Record<string, unknown>;
-};
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import {
+  createUserSubscription,
+  findFreePlan,
+  findPricingPlanById,
+} from "../services/pricing.services";
 
 export const registerUser: RequestHandler = async (
   request: Request,
@@ -51,24 +41,21 @@ export const registerUser: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { firstName, lastName, emailAddress, password } = request.body;
+    const { firstName, lastName, emailAddress, password, pricing } =
+      request.body;
 
     const user = await createUser(firstName, lastName, emailAddress, password);
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: emailAddress,
-      subject: `Message from ${APP_NAME}`,
+      subject: `Welcome to ${APP_NAME}`,
       template: "register.views",
       context: {
-        appName: APP_NAME,
         name: user.firstName,
         token: user.token,
-        year: new Date().getFullYear(),
       },
-    };
-
-    sendMail(options);
+    });
 
     await createAuditLog({
       user: JSON.stringify(user),
@@ -76,6 +63,50 @@ export const registerUser: RequestHandler = async (
       newData: JSON.stringify(user),
       section: "REGISTER",
     });
+
+    let plan = await findFreePlan();
+
+    if (pricing) {
+      plan = await findPricingPlanById(pricing);
+    }
+
+    if (plan?.id) {
+      const subscription = await createUserSubscription(user, plan);
+
+      await createAuditLog({
+        user: JSON.stringify(user),
+        action: "CREATE USER SUBSCRIPTION",
+        newData: JSON.stringify(subscription),
+        section: "SUBSCRIPTION",
+      });
+    }
+
+    if (user?.id) {
+      await createNotificationSettingsByUserId(user.id, [
+        { id: "emailNotification", value: true },
+        { id: "pushNotification", value: true },
+        { id: "login", value: true },
+        { id: "newLesson", value: true },
+        { id: "lessonNotSubscribed", value: true },
+        { id: "lessonSubscribed1Day", value: true },
+        { id: "lessonSubscribed1Hour", value: true },
+        { id: "lessonSubscribed30Minutes", value: true },
+        { id: "lessonSubscribed15Minutes", value: true },
+        { id: "lessonSubscribed5Minutes", value: true },
+        { id: "newMessage", value: true },
+        { id: "lessonComplete", value: true },
+        { id: "weeklySummary", value: true },
+        { id: "monthlySummary", value: true },
+        { id: "newStudent", value: false },
+        { id: "showProfilePublicly", value: false },
+        { id: "newReview", value: true },
+        { id: "newBooking", value: true },
+        { id: "bookingReminder", value: true },
+        { id: "bookingCanceled", value: true },
+        { id: "bookingCompleted", value: true },
+        { id: "bookingRescheduled", value: true },
+      ]);
+    }
 
     response.status(201).json({
       message: `Profile created successfully. A verification email has been sent to ${emailAddress} to verify your account. Please check your email for verification details and also check  your spam mail if you can't find it in your inbox.`,
@@ -119,7 +150,7 @@ export const loginUser: RequestHandler = async (
     }
 
     if (user.emailVerified === VERIFICATION.NOT_VERIFIED) {
-      if (!user?.emailAddress) {
+      if (!user?.emailAddress || !user?.id) {
         const error = new Error(
           "Something went wrong. Please try again later.",
         ) as ResponseError;
@@ -127,40 +158,26 @@ export const loginUser: RequestHandler = async (
         return next(error);
       }
 
-      const updatedUser = await generateEmailToken(user);
+      const token = await generateEmailToken(user);
 
       response.status(201).json({
-        data: { id: updatedUser.id },
-        message: `An email verification link has been sent to ${updatedUser.emailAddress}. Please  check  your spam mail if you can't find it in your inbox.`,
+        data: { id: user.id },
+        message: `An email verification link has been sent to ${user.emailAddress}. Please  check  your spam mail if you can't find it in your inbox.`,
       });
 
-      const options: ExtendedOptions = {
+      return sendSingleMail({
         from: MAIL_CONFIG.sender,
         to: user.emailAddress,
-        subject: `Message from ${APP_NAME}`,
+        subject: `Verify your email address`,
         template: "newToken.views",
         context: {
-          appName: APP_NAME,
           name: user.firstName,
-          link: `${APP_URL}/email-verification/${updatedUser.token}`,
-          year: new Date().getFullYear(),
+          token,
         },
-      };
-
-      return sendMail(options);
+      });
     }
 
     const token = await generateAuthToken(user);
-
-    await createAuditLog({
-      user: JSON.stringify(user),
-      action: "LOGIN",
-      newData: JSON.stringify({
-        ip: request.ip,
-        userAgent: request.headers["user-agent"],
-      }),
-      section: "LOGIN",
-    });
 
     response.status(201).json({
       message: "Login successful",
@@ -173,20 +190,16 @@ export const loginUser: RequestHandler = async (
       return;
     }
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: emailAddress,
-      subject: `Message from ${APP_NAME}`,
+      subject: `Login successful`,
       template: "login.views",
       context: {
-        appName: APP_NAME,
         name: user.firstName,
         time: moment().format("DD/MM/YYYY HH:mm:ss"),
-        year: new Date().getFullYear(),
       },
-    };
-
-    sendMail(options);
+    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -225,9 +238,9 @@ export const verifyEmail: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "VERIFY_EMAIL",
+      action: "VERIFY EMAIL",
       newData: JSON.stringify(user),
-      section: "VERIFY_EMAIL",
+      section: "REGISTRATION",
     });
 
     const newNotification = `
@@ -299,9 +312,9 @@ export const forgotPassword: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "FORGOT_PASSWORD",
+      action: "FORGOT PASSWORD",
       newData: JSON.stringify(updateUser),
-      section: "FORGOT_PASSWORD",
+      section: "PASSWORD",
     });
 
     response.status(201).json({
@@ -309,20 +322,16 @@ export const forgotPassword: RequestHandler = async (
       data: user.id,
     });
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: emailAddress,
-      subject: `Message from ${APP_NAME}`,
+      subject: `Forgot password`,
       template: "forgotPassword.views",
       context: {
-        appName: APP_NAME,
         name: user.firstName,
         token: updateUser.token,
-        year: new Date().getFullYear(),
       },
-    };
-
-    sendMail(options);
+    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -359,9 +368,9 @@ export const resetPassword: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "RESET_PASSWORD",
+      action: "RESET PASSWORD",
       newData: JSON.stringify(user),
-      section: "RESET_PASSWORD",
+      section: "PASSWORD",
     });
 
     response.status(201).json({
@@ -389,7 +398,7 @@ export const resendToken: RequestHandler = async (
 
     const user = await findUserById(request.params.id, false);
 
-    if (!user?.emailAddress) {
+    if (!user?.emailAddress || !user?.id) {
       const error = new Error(
         "Something went wrong. Please try again later.",
       ) as ResponseError;
@@ -405,12 +414,12 @@ export const resendToken: RequestHandler = async (
       return next(error);
     }
 
-    const updatedUser = await generateEmailToken(user);
+    const token = await generateEmailToken(user);
 
     await createAuditLog({
       user: JSON.stringify(user),
       action: "RESEND_TOKEN",
-      newData: JSON.stringify(updatedUser),
+      newData: JSON.stringify(token),
       section: "RESEND_TOKEN",
     });
 
@@ -418,20 +427,16 @@ export const resendToken: RequestHandler = async (
       message: `A token has been sent to ${user.emailAddress}. Please  check  your spam mail if you can't find it in your inbox.`,
     });
 
-    const options: ExtendedOptions = {
+    sendSingleMail({
       from: MAIL_CONFIG.sender,
       to: user.emailAddress,
-      subject: `Message from ${APP_NAME}`,
+      subject: `Verify your email address`,
       template: "newToken.views",
       context: {
-        appName: APP_NAME,
         name: user.firstName,
-        token: updatedUser.token,
-        year: new Date().getFullYear(),
+        token,
       },
-    };
-
-    sendMail(options);
+    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -444,8 +449,6 @@ export const logoutUser: RequestHandler = async (
   next: NextFunction,
 ): Promise<any> => {
   try {
-    const userId = (request as CustomRequest).user?.id;
-
     const token = request.header("Authorization")
       ? request.header("Authorization")?.split(" ")[1]
       : null;
@@ -465,20 +468,6 @@ export const logoutUser: RequestHandler = async (
     }
 
     await createBlackListToken(token);
-
-    const user = await findUserById(userId);
-
-    if (user) {
-      await createAuditLog({
-        user: JSON.stringify(user),
-        action: "LOGOUT",
-        newData: JSON.stringify({
-          ip: request.ip,
-          userAgent: request.headers["user-agent"],
-        }),
-        section: "LOGOUT",
-      });
-    }
 
     response.status(201).json({
       message: "Logout successful.",

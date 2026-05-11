@@ -10,6 +10,7 @@ import {
   getUserAvatar,
   deleteUsers,
   getHomeInstructors,
+  getCurrency,
 } from "../controllers/user.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
 import isUser from "../middlewares/user.middlewares";
@@ -22,6 +23,7 @@ const router = Router();
 
 // router.get("/", isAuth, isAdmin, getUsers);
 router.get("/profile", isAuth, isUser, getProfile);
+router.get("/currency", getCurrency);
 // router.get("/:id", isAuth, isAdmin, getUser);
 // router.patch(
 //   "/update-profiles",

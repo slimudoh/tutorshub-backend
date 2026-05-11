@@ -49,6 +49,7 @@ import Report from "./models/report.models";
 import Newsletter from "./models/newsletter.models";
 import Category from "./models/category.models";
 import ContactMessage from "./models/ContactMessage.models";
+import InstructorEarning from "./models/instructorEarning.models";
 
 dotenv.config();
 
@@ -133,6 +134,7 @@ sequelize
     Newsletter.sync({ alter: true });
     Category.sync({ alter: true });
     ContactMessage.sync({ alter: true });
+    InstructorEarning.sync({ alter: true });
 
     app.listen(PORT, () => {
       console.log(

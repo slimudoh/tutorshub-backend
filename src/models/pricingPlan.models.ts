@@ -1,19 +1,16 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// id
-// name
-// price_usd
-// credits
-// currency_supported
-// created_at
-
 class PricingPlan extends Model {
   declare id: string | null;
-  declare name: string | null;
-  declare amount: number | null;
+  declare title: string | null;
+  declare slug: string | null;
   declare description: string | null;
-  declare duration: number | null;
+  declare amount: number | null;
+  declare currency: string | null;
+  declare billingCycle: string | null;
+  declare lessonLimit: number | null;
+  declare isUnlimited: boolean | null;
   declare features: string[] | null;
   declare status: string | null;
   declare createdAt: Date;
@@ -27,20 +24,36 @@ PricingPlan.init(
       allowNull: false,
       primaryKey: true,
     },
-    name: {
+    title: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    amount: {
-      type: DataTypes.DECIMAL(10, 2),
+    slug: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    duration: {
+    amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    currency: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    billingCycle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    lessonLimit: {
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    isUnlimited: {
+      type: DataTypes.BOOLEAN,
       allowNull: true,
     },
     features: {

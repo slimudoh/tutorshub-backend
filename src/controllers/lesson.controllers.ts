@@ -10,7 +10,7 @@ import {
   getLessonHistories,
   getUserLessons,
   updateLessonStatus,
-  getLiveLessons,
+  fetchLiveLessons,
   getActiveHomeLessons,
   fetchLessonsByCategory,
 } from "../services/lesson.services";
@@ -115,13 +115,13 @@ export const reviewAdminLessons: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
-      action: newStatus,
+      action: "REVIEW LESSON",
       oldData: JSON.stringify(lesson),
       newData: JSON.stringify({
         ...lesson,
         status: newStatus,
       }),
-      section: "REVIEW LESSON",
+      section: "LESSON",
     });
 
     response.status(201).json({
@@ -211,13 +211,13 @@ export const getAllUserLessons: RequestHandler = async (
   }
 };
 
-export const getLiveSessionsLessons: RequestHandler = async (
+export const getLiveLessons: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
   try {
-    const lesson = await getLiveLessons();
+    const lesson = await fetchLiveLessons();
 
     response.status(201).json({
       data: lesson,
