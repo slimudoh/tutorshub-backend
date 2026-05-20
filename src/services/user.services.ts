@@ -39,6 +39,7 @@ export const createUser = async (
   lastName: string,
   emailAddress: string,
   password: string,
+  country: string,
 ) => {
   const hashedPassword = await bcrypt.hash(String(password), 15);
   const userName = await getUserName(firstName);
@@ -51,6 +52,7 @@ export const createUser = async (
     userName,
     emailAddress,
     password: hashedPassword,
+    country,
     role: ROLES.USER,
     status: USER.PENDING,
     emailVerified: VERIFICATION.NOT_VERIFIED,
@@ -153,6 +155,11 @@ export const getAllUsers = async (
         { lastName: { [Op.like]: `%${keyword}%` } },
         { emailAddress: { [Op.like]: `%${keyword}%` } },
         { phoneNumber: { [Op.like]: `%${keyword}%` } },
+        { userName: { [Op.like]: `%${keyword}%` } },
+        { role: { [Op.like]: `%${keyword}%` } },
+        { country: { [Op.like]: `%${keyword}%` } },
+        { dateOfBirth: { [Op.like]: `%${keyword}%` } },
+        { address: { [Op.like]: `%${keyword}%` } },
       ],
     };
   }
@@ -170,7 +177,6 @@ export const getAllUsers = async (
 
   return await User.findAll({
     where,
-
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
     ...(newPageSize && { limit: newPageSize }),
@@ -217,6 +223,7 @@ export const getUserProfile = (userProfile: User) => {
     dateOfBirth: userProfile?.dateOfBirth ?? "",
     country: userProfile?.country ?? "",
     address: userProfile?.address ?? "",
+    role: userProfile?.role ?? "",
   };
 };
 
@@ -324,4 +331,20 @@ export const fetchHomeInstructors = async () => {
     limit: 10,
     raw: true,
   });
+};
+
+export const findAllActiveUsers = async () => {
+  return await User.findAll({
+    where: {
+      status: USER.ACTIVE,
+    },
+    raw: true,
+    attributes: {
+      exclude: USER_EXCLUDED_ATTRIBUTES,
+    },
+  });
+};
+
+export const updateUserRole = async (id: string, role: string) => {
+  await User.update({ role }, { where: { id } });
 };

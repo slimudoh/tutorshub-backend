@@ -3,16 +3,16 @@ import isAuth from "../middlewares/auth.middlewares";
 import isUser from "../middlewares/user.middlewares";
 import {
   getNotifications,
-  markNotificationAsRead,
-  deleteNotification,
+  readAllNotifications,
+  getNotificationById,
 } from "../controllers/notification.controllers";
 
 const router = Router();
 
 router.get("/", isAuth, isUser, getNotifications);
 
-// router.put("/:id", isAuth, isUser, markNotificationAsRead);
+router.patch("/read-all-notifications", isAuth, isUser, readAllNotifications);
 
-// router.delete("/:id", isAuth, isUser, deleteNotification);
+router.get("/:id", isAuth, isUser, getNotificationById);
 
 export default router;

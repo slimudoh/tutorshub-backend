@@ -8,14 +8,18 @@ export const getAllAuditLogs: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { pageNumber, pageSize } = request.query;
+    const { pageNumber, pageSize, keyword } = request.query;
     const newPageNumber = Number(pageNumber);
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const auditLogs = await getAuditLogs(offsetSize, newPageSize);
+    const auditLogs = await getAuditLogs(
+      keyword as string,
+      offsetSize,
+      newPageSize,
+    );
 
-    const totalPages = await getAuditLogs();
+    const totalPages = await getAuditLogs(keyword as string);
 
     response.status(201).json({
       currentPage: newPageNumber,

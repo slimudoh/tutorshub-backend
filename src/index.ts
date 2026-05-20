@@ -26,7 +26,9 @@ import reviewRouter from "./routes/review.routes";
 import reportRouter from "./routes/report.routes";
 import newsletterRouter from "./routes/newsletter.routes";
 import categoryRouter from "./routes/category.routes";
-import contactRouter from "./routes/contact.routes";
+import messageRouter from "./routes/message.routes";
+import jobRouter from "./routes/job.routes";
+import instructorRouter from "./routes/instructor.routes";
 
 import User from "./models/user.models";
 import BlackListToken from "./models/blackListToken.models";
@@ -42,14 +44,14 @@ import SubscriptionPlan from "./models/subscriptionPlan.models";
 import PricingPlan from "./models/pricingPlan.models";
 import Currency from "./models/currency.models";
 import Rate from "./models/rate.models";
-import Enrollee from "./models/enrollee.models";
 import Review from "./models/review.models";
 import LessonEnrollment from "./models/lessonEnrollment.models";
 import Report from "./models/report.models";
 import Newsletter from "./models/newsletter.models";
 import Category from "./models/category.models";
-import ContactMessage from "./models/ContactMessage.models";
+import Message from "./models/message.models";
 import InstructorEarning from "./models/instructorEarning.models";
+import Instructor from "./models/instructor.models";
 
 dotenv.config();
 
@@ -87,6 +89,7 @@ app.use(cors(corsOptions));
 
 app.set("trust proxy", 1);
 app.use("/api/v1", apiLimiter);
+app.use("/api/v1/jobs", jobRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/overview", overviewRouter);
@@ -103,7 +106,8 @@ app.use("/api/v1/reviews", reviewRouter);
 app.use("/api/v1/reports", reportRouter);
 app.use("/api/v1/newsletters", newsletterRouter);
 app.use("/api/v1/categories", categoryRouter);
-app.use("/api/v1/contacts", contactRouter);
+app.use("/api/v1/messages", messageRouter);
+app.use("/api/v1/instructors", instructorRouter);
 
 app.use(invalidRouteHandler);
 app.use(errorHandler);
@@ -127,14 +131,14 @@ sequelize
     PricingPlan.sync({ alter: true });
     Currency.sync({ alter: true });
     Rate.sync({ alter: true });
-    Enrollee.sync({ alter: true });
     Review.sync({ alter: true });
     LessonEnrollment.sync({ alter: true });
     Report.sync({ alter: true });
     Newsletter.sync({ alter: true });
     Category.sync({ alter: true });
-    ContactMessage.sync({ alter: true });
+    Message.sync({ alter: true });
     InstructorEarning.sync({ alter: true });
+    Instructor.sync({ alter: true });
 
     app.listen(PORT, () => {
       console.log(

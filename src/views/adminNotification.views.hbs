@@ -172,10 +172,27 @@
                                         text-align: left;
                                         font-style: normal;
                                         color: #000000;
+                                        margin-bottom: 25px;
                                       "
                                     >
                                       {{message}}
                                     </p>
+
+                                    {{#if link}}
+                                      <p
+                                        style="
+                                        font-family: Montserrat;
+                                        font-size: 14px;
+                                        font-weight: 400;
+                                        line-height: 21px;
+                                        letter-spacing: -0.01em;
+                                        text-align: left;
+                                        color: #000000;
+                                      "
+                                      >
+                                        <a href="{{link}}">Click to View Details</a>
+                                      </p>
+                                    {{/if}}
 
                                     <p
                                       style="

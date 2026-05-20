@@ -9,6 +9,7 @@ import {
   findUserById,
 } from "../services/user.services";
 import { createServerError } from "../services/error.services";
+import { findInstructorByUserId } from "../services/instructor.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;

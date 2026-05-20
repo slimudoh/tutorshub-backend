@@ -1,5 +1,3 @@
-import { CANCELLED } from "dns";
-
 export const ROLES = {
   USER: "USER",
   INSTRUCTOR: "INSTRUCTOR",
@@ -30,6 +28,14 @@ export const USER = {
   CLOSED: "CLOSED",
   ACTIVATE: "ACTIVATE",
   SUSPEND: "SUSPEND",
+};
+
+export const INSTRUCTOR = {
+  PENDING: "PENDING",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  SUSPENDED: "SUSPENDED",
+  DEACTIVATED: "DEACTIVATED",
 };
 
 export const PRICING = {
@@ -67,7 +73,7 @@ export const CATEGORY = {
   SUSPEND: "SUSPEND",
 };
 
-export const CONTACT = {
+export const MESSAGE = {
   NEW: "NEW",
   IN_PROGRESS: "IN_PROGRESS",
   RESOLVED: "RESOLVED",
@@ -106,6 +112,13 @@ export const LESSON_ENROLLMENT = {
   COMPLETED: "COMPLETED",
 };
 
+export const REVIEW = {
+  ACTIVE: "ACTIVE",
+  SUSPENDED: "SUSPENDED",
+  SUSPEND: "SUSPEND",
+  ACTIVATE: "ACTIVATE",
+};
+
 export const USER_EXCLUDED_ATTRIBUTES = [
   "password",
   "emailVerified",
@@ -115,7 +128,9 @@ export const USER_EXCLUDED_ATTRIBUTES = [
   "tokenExpiryStatus",
 ];
 
-export const CONTACT_EXCLUDED_ATTRIBUTES = ["userId"];
+export const INSTRUCTOR_EXCLUDED_ATTRIBUTES = [];
+
+export const MESSAGE_EXCLUDED_ATTRIBUTES = ["userId"];
 
 export const LESSON_EXCLUDED_ATTRIBUTES = [];
 

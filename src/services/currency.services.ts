@@ -266,10 +266,7 @@ export const getUserCurrency = async (request: any) => {
 };
 
 export const convertSingleCurrency = async (
-  payload: {
-    amount: number;
-    currency: string;
-  },
+  payload: any,
   userCurrency: string,
 ) => {
   const rates = await Rate.findAll({

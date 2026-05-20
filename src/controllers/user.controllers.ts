@@ -15,11 +15,19 @@ import {
 } from "../services/user.services";
 import { createServerError } from "../services/error.services";
 import { createAuditLog } from "../services/auditLog.services";
-import { USER } from "../utils/constant";
+import { ROLES, SUBSCRIPTION, USER } from "../utils/constant";
 import path from "path";
-import { findUsersSubscriptionPlans } from "../services/pricing.services";
-import { getUserCurrency } from "../services/currency.services";
+import {
+  findPricingPlanById,
+  findUsersSubscriptionPlans,
+} from "../services/pricing.services";
+import {
+  convertSingleCurrency,
+  getUserCurrency,
+} from "../services/currency.services";
 import { deleteFile } from "../utils/file";
+import { findInstructorByUserId } from "../services/instructor.services";
+import Instructor from "../models/instructor.models";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -68,12 +76,29 @@ export const getUser: RequestHandler = async (
 ) => {
   try {
     const userId = request.params.id;
-
     const user = await findUserById(userId);
+    const userCurrency = await getUserCurrency(request);
 
     if (user) {
       user.deactivationDetails = await getDeletedUser(userId);
-      user.subscriptionPlan = await findUsersSubscriptionPlans(userId);
+      const subscriptionPlans = await findUsersSubscriptionPlans(userId);
+
+      const subscriptionPlan = subscriptionPlans.find(
+        (plan) => plan.status === SUBSCRIPTION.ACTIVE,
+      );
+
+      if (subscriptionPlan?.planId) {
+        let pricingPlan = await findPricingPlanById(subscriptionPlan.planId);
+
+        pricingPlan = await convertSingleCurrency(
+          pricingPlan,
+          userCurrency || "USD",
+        );
+
+        subscriptionPlan.plan = pricingPlan;
+      }
+
+      user.subscriptionPlan = subscriptionPlan ?? null;
     }
 
     response.status(201).json({
@@ -104,13 +129,14 @@ export const getProfile: RequestHandler = async (
     }
 
     const userCurrency = await getUserCurrency(request);
-
-    const profile = getUserProfile(userProfile);
+    const learner = getUserProfile(userProfile);
+    const instructor = await findInstructorByUserId(userId);
 
     response.status(201).json({
       data: {
-        profile,
+        learner,
         currency: userCurrency,
+        instructor,
       },
     });
   } catch (err) {
@@ -151,6 +177,17 @@ export const reviewUsers: RequestHandler = async (
         "User not found. Please try again later.",
       ) as ResponseError;
       error.statusCode = 404;
+      return next(error);
+    }
+
+    if (
+      targetUser.role === ROLES.ADMIN ||
+      targetUser.role === ROLES.SUPER_ADMIN
+    ) {
+      const error = new Error(
+        "You cannot review an admin user. Please try again later.",
+      ) as ResponseError;
+      error.statusCode = 400;
       return next(error);
     }
 
@@ -326,12 +363,12 @@ export const updateProfile: RequestHandler = async (
       return next(error);
     }
 
-    const profile = getUserProfile(userProfile);
+    const learner = getUserProfile(userProfile);
 
     response.status(201).json({
       message: "User profile updated successfully.",
       data: {
-        ...profile,
+        learner,
       },
     });
   } catch (err) {

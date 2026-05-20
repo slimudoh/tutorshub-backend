@@ -1,7 +1,5 @@
-import { Op } from "sequelize";
 import { NOTIFICATION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import Notification from "../models/notification.models";
-import { format } from "date-fns";
 import { getNotificationSettingsByUserId } from "./setting.services";
 
 //   newClass: boolean;
@@ -40,30 +38,13 @@ export const findNotificationById = async (
 
 export const getUserNotifications = async (
   userId: string,
-  keyword?: string,
-  status?: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [{ title: { [Op.like]: `%${keyword}%` } }],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      isRead: status === "READ",
-    };
-  }
-
   if (!offsetSize && !newPageSize) {
     return await Notification.count({
-      where: { receiverId: userId, isDeleted: false, ...where },
+      where: { receiverId: userId, isDeleted: false },
     });
   }
 
@@ -71,7 +52,6 @@ export const getUserNotifications = async (
     where: {
       receiverId: userId,
       isDeleted: false,
-      ...where,
     },
     order: [["createdAt", "DESC"]],
     ...(offsetSize && { offset: offsetSize }),
@@ -108,7 +88,11 @@ export const createNotification = async (
   });
 };
 
-export const markUserNotificationAsRead = async (id: string) => {
+export const readAllUserNotifications = async (
+  userId: string,
+  offsetSize: number,
+  newPageSize: number,
+) => {
   return await Notification.update(
     {
       isRead: true,
@@ -116,23 +100,11 @@ export const markUserNotificationAsRead = async (id: string) => {
     },
     {
       where: {
-        id: id,
+        receiverId: userId,
         isRead: false,
       },
-    },
-  );
-};
-
-export const deleteUserNotification = async (id: string) => {
-  return await Notification.update(
-    {
-      isDeleted: true,
-      deletedAt: new Date(),
-    },
-    {
-      where: {
-        id: id,
-      },
+      ...(offsetSize && { offset: offsetSize }),
+      ...(newPageSize && { limit: newPageSize }),
     },
   );
 };

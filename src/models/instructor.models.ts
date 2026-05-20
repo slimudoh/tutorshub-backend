@@ -1,16 +1,20 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
+import User from "./user.models";
 
-class Enrollee extends Model {
+class Instructor extends Model {
   declare id: string | null;
   declare userId: string | null;
-  declare lessonId: string | null;
+  declare bio: string | null;
+  declare languages: string[] | null;
+  declare skills: string[] | null;
   declare status: string | null;
+  declare user: User | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
 
-Enrollee.init(
+Instructor.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -19,21 +23,29 @@ Enrollee.init(
     },
     userId: {
       type: DataTypes.UUID,
+      allowNull: false,
+    },
+    bio: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
-    lessonId: {
-      type: DataTypes.UUID,
+    languages: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    skills: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     status: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
     },
   },
   {
-    tableName: "enrollees",
+    tableName: "instructors",
     sequelize,
   },
 );
 
-export default Enrollee;
+export default Instructor;

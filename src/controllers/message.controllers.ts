@@ -1,28 +1,30 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError } from "../services/error.services";
 import {
-  addContactMessage,
-  getContactMessageById,
-  getContactMessages,
-  updateContactMessageStatus,
-} from "../services/contact.services";
+  addMessage,
+  getMessageById,
+  getMessages,
+  updateMessageStatus,
+} from "../services/message.services";
 import { Users } from "../interfaces/user";
 import { JwtPayload } from "jsonwebtoken";
-import {
-  findUserById,
-  getAllActiveAdminUsers,
-} from "../services/user.services";
+import { findUserById } from "../services/user.services";
 import { ResponseError } from "../interfaces";
 import { createAuditLog } from "../services/auditLog.services";
-import { sendMultipleMails, sendSingleMail } from "../services/email.services";
-import { CONTACT, MAIL_CONFIG } from "../utils/constant";
+import {
+  sendAdminEmailMessages,
+  sendSingleMail,
+  sendUserEmailNotification,
+} from "../services/email.services";
+import { MESSAGE, MAIL_CONFIG } from "../utils/constant";
 import { createNotification } from "../services/notification.services";
+import { removeUnderscoreFromString } from "../utils/formatter";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
 
-export const createGuestContactMessage: RequestHandler = async (
+export const createGuestMessage: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -30,17 +32,12 @@ export const createGuestContactMessage: RequestHandler = async (
   try {
     const { name, email, subject, message } = request.body;
 
-    const contactMessage = await addContactMessage(
-      name,
-      email,
-      subject,
-      message,
-    );
+    const msg = await addMessage(name, email, subject, message);
 
     await createAuditLog({
-      action: "CREATE CONTACT MESSAGE",
-      newData: JSON.stringify(contactMessage),
-      section: "CONTACT MESSAGE",
+      action: "CREATE MESSAGE",
+      newData: JSON.stringify(msg),
+      section: "MESSAGE",
     });
 
     response.status(201).json({
@@ -60,22 +57,10 @@ export const createGuestContactMessage: RequestHandler = async (
       template: "userNotification.views",
     });
 
-    const adminUsers = await getAllActiveAdminUsers();
-
-    await sendMultipleMails({
-      from: MAIL_CONFIG.sender,
-      dataList: adminUsers.map((adminUser) => {
-        return {
-          name: adminUser?.firstName || "",
-          email: adminUser?.emailAddress || "",
-        };
-      }),
-      context: {
-        title: "New contact message",
-        message: `New contact message from ${name}. Please check the contact messages section of the admin dashboard for more details.`,
-      },
-      subject: `New contact message from ${name}`,
-      template: "adminNotification.views",
+    sendAdminEmailMessages({
+      title: "New Message",
+      message: `New message from ${name}. Please check the messages section of the admin dashboard for more details.`,
+      subject: `New message from ${name}`,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -83,7 +68,7 @@ export const createGuestContactMessage: RequestHandler = async (
   }
 };
 
-export const createUserContactMessage: RequestHandler = async (
+export const createUserMessage: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -103,7 +88,7 @@ export const createUserContactMessage: RequestHandler = async (
       return next(error);
     }
 
-    const contactMessage = await addContactMessage(
+    const msg = await addMessage(
       user.firstName + " " + user.lastName,
       user.emailAddress,
       subject,
@@ -113,21 +98,15 @@ export const createUserContactMessage: RequestHandler = async (
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "CREATE CONTACT MESSAGE",
-      newData: JSON.stringify(contactMessage),
-      section: "CONTACT MESSAGE",
+      action: "CREATE MESSAGE",
+      newData: JSON.stringify(msg),
+      section: "MESSAGE",
     });
 
-    const newNotification = `
-        <p>
-          Thank you for reaching out to us. We have received your message and appreciate you
-          taking the time to contact us. Our team
-          will review your inquiry and get back to you as soon as possible.
-        </p>
-      `;
+    const newNotification = `Thank you for reaching out to us. We have received your message and appreciate you taking the time to contact us. Our team will review your inquiry and get back to you as soon as possible.`;
 
     await createNotification(
-      "New Contact Message",
+      "We received your message",
       newNotification,
       user?.id ?? "",
     );
@@ -136,7 +115,7 @@ export const createUserContactMessage: RequestHandler = async (
       user: JSON.stringify(user),
       action: "NEW NOTIFICATION",
       newData: JSON.stringify({
-        title: "New Contact Message",
+        title: "We received your message",
         message: newNotification,
         receiverId: user?.id ?? "",
         senderId: null,
@@ -148,35 +127,15 @@ export const createUserContactMessage: RequestHandler = async (
       message: "Message sent successfully",
     });
 
-    sendSingleMail({
-      from: MAIL_CONFIG.sender,
-      to: user.emailAddress,
-      context: {
-        title: "We received your message.",
-        name: user.firstName,
-        message:
-          "Thank you for reaching out to us. We have received your message and appreciate you taking the time to contact us. Our team will review your inquiry and get back to you as soon as possible.",
-      },
-      subject: `We received your message.`,
-      template: "userNotification.views",
+    sendUserEmailNotification({
+      emailAddress: user.emailAddress,
+      userName: user.firstName + " " + user.lastName,
     });
 
-    const adminUsers = await getAllActiveAdminUsers();
-
-    await sendMultipleMails({
-      from: MAIL_CONFIG.sender,
-      dataList: adminUsers.map((adminUser) => {
-        return {
-          name: adminUser?.firstName || "",
-          email: adminUser?.emailAddress || "",
-        };
-      }),
-      context: {
-        title: "New contact message",
-        message: `New contact message from ${user.firstName + " " + user.lastName}. Please check the contact messages section of the admin dashboard for more details.`,
-      },
-      subject: `New contact message from ${user.firstName + " " + user.lastName}`,
-      template: "adminNotification.views",
+    sendAdminEmailMessages({
+      title: "New Message",
+      message: `New message from ${user.firstName + " " + user.lastName}. Please check the messages section of the admin dashboard for more details.`,
+      subject: `New message from ${user.firstName + " " + user.lastName}`,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -184,7 +143,7 @@ export const createUserContactMessage: RequestHandler = async (
   }
 };
 
-export const getAllContactMessages: RequestHandler = async (
+export const getAllMessages: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -195,17 +154,14 @@ export const getAllContactMessages: RequestHandler = async (
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const contactMessages = await getContactMessages(
+    const messages = await getMessages(
       keyword as string,
       status as string,
       offsetSize,
       newPageSize,
     );
 
-    const totalPages = await getContactMessages(
-      keyword as string,
-      status as string,
-    );
+    const totalPages = await getMessages(keyword as string, status as string);
 
     response.status(201).json({
       currentPage: newPageNumber,
@@ -215,7 +171,7 @@ export const getAllContactMessages: RequestHandler = async (
         typeof totalPages === "number"
           ? Math.ceil(totalPages / newPageSize)
           : 0,
-      data: contactMessages,
+      data: messages,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -223,7 +179,7 @@ export const getAllContactMessages: RequestHandler = async (
   }
 };
 
-export const getContactMessage: RequestHandler = async (
+export const getMessage: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -231,10 +187,10 @@ export const getContactMessage: RequestHandler = async (
   try {
     const { id } = request.params;
 
-    const contactMessage = await getContactMessageById(id);
+    const message = await getMessageById(id);
 
     response.status(201).json({
-      data: contactMessage,
+      data: message,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -242,7 +198,7 @@ export const getContactMessage: RequestHandler = async (
   }
 };
 
-export const reviewContactMessages: RequestHandler = async (
+export const reviewMessages: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -262,7 +218,7 @@ export const reviewContactMessages: RequestHandler = async (
       return next(error);
     }
 
-    const targetMessage = await getContactMessageById(id);
+    const targetMessage = await getMessageById(id);
 
     if (!targetMessage) {
       const error = new Error(
@@ -273,10 +229,10 @@ export const reviewContactMessages: RequestHandler = async (
     }
 
     if (
-      status !== CONTACT.RESOLVED &&
-      status !== CONTACT.IN_PROGRESS &&
-      status !== CONTACT.NEW &&
-      status !== CONTACT.CLOSED
+      status !== MESSAGE.RESOLVED &&
+      status !== MESSAGE.IN_PROGRESS &&
+      status !== MESSAGE.NEW &&
+      status !== MESSAGE.CLOSED
     ) {
       const error = new Error(
         "Invalid status. Please try again later.",
@@ -293,29 +249,24 @@ export const reviewContactMessages: RequestHandler = async (
       return next(error);
     }
 
-    await updateContactMessageStatus(id, status);
+    await updateMessageStatus(id, status);
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
-      action: "REVIEW CONTACT MESSAGE",
+      action: "REVIEW MESSAGE",
       oldData: JSON.stringify(targetMessage),
       newData: JSON.stringify({
         ...targetMessage,
         status,
         comment,
       }),
-      section: "CONTACT MESSAGE",
+      section: "MESSAGE",
     });
 
-    const newNotification = `
-        <p>
-          Your message has been reviewed and the status has been updated to ${status}.
-        </p>
-        <p>${comment}</p>
-      `;
+    const newNotification = `Your message has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
 
     await createNotification(
-      "Contact Message Reviewed",
+      "Your message has been reviewed",
       newNotification,
       targetUser?.id ?? "",
     );
@@ -324,7 +275,7 @@ export const reviewContactMessages: RequestHandler = async (
       user: JSON.stringify(targetUser),
       action: "NEW NOTIFICATION",
       newData: JSON.stringify({
-        title: "Contact Message Reviewed",
+        title: "Your message has been reviewed",
         message: newNotification,
         receiverId: targetUser?.id ?? "",
         senderId: null,
@@ -336,21 +287,9 @@ export const reviewContactMessages: RequestHandler = async (
       message: "Message reviewed successfully.",
     });
 
-    sendSingleMail({
-      from: MAIL_CONFIG.sender,
-      to: targetUser?.emailAddress || "",
-      context: {
-        title: "Message Reviewed",
-        name: targetUser?.firstName || "",
-        message:
-          "Your message has been reviewed and the status has been updated to " +
-          status +
-          "." +
-          " " +
-          comment,
-      },
-      subject: `Message Reviewed`,
-      template: "userNotification.views",
+    sendUserEmailNotification({
+      emailAddress: targetUser?.emailAddress || "",
+      userName: targetUser?.firstName || "",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

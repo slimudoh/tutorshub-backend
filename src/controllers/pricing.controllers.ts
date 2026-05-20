@@ -16,6 +16,8 @@ import {
   updateSubscriptionAutoRenew,
   updateSubscriptionPlanStatus,
   createUserSubscription,
+  renewSubscriptionPlans,
+  sendExpiryNotification,
 } from "../services/pricing.services";
 import { ResponseError } from "../interfaces";
 import { findUserById } from "../services/user.services";
@@ -587,6 +589,40 @@ export const changePricingPlan: RequestHandler = async (
 
     response.status(201).json({
       message: "Subscription plan changed successfully.",
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const checkSubscriptionExpiry = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    await renewSubscriptionPlans();
+
+    response.status(201).json({
+      message: "Subscription plans renewed successfully.",
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const sendSubscriptionExpiryNotification = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    await sendExpiryNotification();
+
+    response.status(201).json({
+      message: "Subscription expiry notifications sent successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

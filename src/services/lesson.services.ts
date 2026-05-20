@@ -178,10 +178,15 @@ export const getLessonHistories = async (
   });
 };
 
-export const fetchLiveLessons = async () => {
+export const fetchLiveLessons = async (excludeAttributes = true) => {
   return await Lesson.findAll({
-    where: { isLive: true },
-    order: [["createdAt", "DESC"]],
+    where: { isLive: true, startTime: { [Op.gte]: new Date() } },
+    order: [["startTime", "ASC"]],
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
+      },
+    }),
     raw: true,
   });
 };

@@ -4,6 +4,7 @@ import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
   createNotificationSettingsByUserId,
+  findUserNotificationSettings,
   getNotificationSettingsByUserId,
   updateNotificationSettingsByUserId,
 } from "../services/setting.services";
@@ -42,9 +43,11 @@ export const updateNotificationSettings: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const { notification } = request.body;
 
-    const settings = await getNotificationSettingsByUserId(userId);
+    const settings = await findUserNotificationSettings(userId);
     const targetUser = await findUserById(userId);
     let updatedSettings;
+
+    console.log({ settings });
 
     if (settings) {
       await updateNotificationSettingsByUserId(userId, notification);

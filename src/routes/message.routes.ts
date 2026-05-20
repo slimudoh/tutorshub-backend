@@ -1,11 +1,11 @@
 import { Router } from "express";
 import {
-  createGuestContactMessage,
-  createUserContactMessage,
-  getAllContactMessages,
-  getContactMessage,
-  reviewContactMessages,
-} from "../controllers/contact.controllers";
+  createGuestMessage,
+  createUserMessage,
+  getAllMessages,
+  getMessage,
+  reviewMessages,
+} from "../controllers/message.controllers";
 import { check } from "express-validator";
 import Validate from "../middlewares/validate.middlewares";
 import isAuth from "../middlewares/auth.middlewares";
@@ -14,9 +14,9 @@ import isAdmin from "../middlewares/admin.middlewares";
 
 const router = Router();
 
-router.get("/admin", isAuth, isAdmin, getAllContactMessages);
+router.get("/admin", isAuth, isAdmin, getAllMessages);
 
-router.get("/admin/:id", isAuth, isAdmin, getContactMessage);
+router.get("/admin/:id", isAuth, isAdmin, getMessage);
 
 router.post(
   "/guest",
@@ -29,7 +29,7 @@ router.post(
   check("subject").notEmpty().withMessage("Subject is required."),
   check("message").notEmpty().withMessage("Message is required."),
   Validate,
-  createGuestContactMessage,
+  createGuestMessage,
 );
 
 router.post(
@@ -39,17 +39,17 @@ router.post(
   Validate,
   isAuth,
   isUser,
-  createUserContactMessage,
+  createUserMessage,
 );
 
 router.patch(
-  "/review-contact-messages",
+  "/review-messages",
   check("id").notEmpty().withMessage("ID is required."),
   check("status").notEmpty().withMessage("Status is required."),
   Validate,
   isAuth,
   isAdmin,
-  reviewContactMessages,
+  reviewMessages,
 );
 
 export default router;

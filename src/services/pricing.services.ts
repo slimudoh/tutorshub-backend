@@ -2,12 +2,18 @@ import { Op } from "@sequelize/core";
 import PricingPlan from "../models/pricingPlan.models";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import {
+  MAIL_CONFIG,
   PRICING,
   PRICING_PLAN_EXCLUDED_ATTRIBUTES,
   SUBSCRIPTION,
 } from "../utils/constant";
 import User from "../models/user.models";
 import moment from "moment";
+import { format } from "date-fns";
+import { createAuditLog } from "./auditLog.services";
+import { createNotification } from "./notification.services";
+import { sendSingleMail } from "./email.services";
+import { findAllActiveUsers } from "./user.services";
 
 export const findAllPricingPlans = async (
   excludeAttributes = true,
@@ -23,6 +29,16 @@ export const findAllPricingPlans = async (
         exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES,
       },
     }),
+    order: [["createdAt", "ASC"]],
+    raw: true,
+  });
+};
+
+export const findAllSubscriptionPlans = async () => {
+  return await SubscriptionPlan.findAll({
+    where: {
+      status: SUBSCRIPTION.ACTIVE,
+    },
     order: [["createdAt", "ASC"]],
     raw: true,
   });
@@ -189,17 +205,41 @@ export const findFreePlan = async () => {
 };
 
 export const createUserSubscription = async (user: User, plan: PricingPlan) => {
+  const autoRenew = !plan?.amount || plan.amount < 1;
+
   return await SubscriptionPlan.create({
     id: crypto.randomUUID(),
     userId: user.id,
     planId: plan.id,
     subscriptionNumber: `SUB-${user?.firstName?.substring(0, 3).toUpperCase()}${user?.lastName?.substring(0, 3).toUpperCase()}-${Date.now()}`,
-    autoRenew: false,
+    autoRenew,
     startDate: new Date(),
     endDate: moment().add(1, "month").toDate(),
     creditsBalance: plan.lessonLimit,
     status: SUBSCRIPTION.ACTIVE,
   });
+};
+
+export const updateUserSubscription = async (
+  userId: string,
+  subscriptionId: string,
+  startDate: Date,
+  endDate: Date,
+) => {
+  return await SubscriptionPlan.update(
+    {
+      startDate,
+      endDate,
+      status: SUBSCRIPTION.ACTIVE,
+    },
+    {
+      where: {
+        id: subscriptionId,
+        userId,
+        status: SUBSCRIPTION.ACTIVE,
+      },
+    },
+  );
 };
 
 export const findSubscriptionPlanById = async (id: string, userId: string) => {
@@ -249,4 +289,132 @@ export const updateSubscriptionPlanStatus = async (
       },
     },
   );
+};
+
+export const renewSubscriptionPlans = async () => {
+  const subscriptionPlans = await findAllSubscriptionPlans();
+  const freePlan = await findFreePlan();
+
+  subscriptionPlans.forEach(async (subscription: SubscriptionPlan) => {
+    if (subscription?.id && subscription?.endDate && subscription?.userId) {
+      let updateUserSubscriptionLog = null;
+      let updateSubscriptionPlanStatusLog = null;
+
+      if (
+        format(new Date(), "yyyy-MM-dd") >=
+        format(subscription.endDate, "yyyy-MM-dd")
+      ) {
+        if (subscription?.autoRenew) {
+          if (freePlan?.id === subscription?.planId) {
+            updateUserSubscriptionLog = await updateUserSubscription(
+              subscription.userId,
+              subscription.id,
+              new Date(),
+              moment().add(1, "month").toDate(),
+            );
+          } else {
+            // process payment and if it is successful update sub plan
+            updateUserSubscriptionLog = await updateUserSubscription(
+              subscription.userId,
+              subscription.id,
+              new Date(),
+              moment().add(1, "month").toDate(),
+            );
+
+            // if payment failed and autoRenew is true, update subscription status to expired
+            updateSubscriptionPlanStatusLog =
+              await updateSubscriptionPlanStatus(
+                subscription.id,
+                subscription.userId,
+                SUBSCRIPTION.EXPIRED,
+              );
+          }
+        } else {
+          updateSubscriptionPlanStatusLog = await updateSubscriptionPlanStatus(
+            subscription.id,
+            subscription.userId,
+            SUBSCRIPTION.EXPIRED,
+          );
+        }
+      }
+
+      if (updateUserSubscriptionLog) {
+        await createAuditLog({
+          action: "CHANGE SUBSCRIPTION PLAN",
+          oldData: subscription ? JSON.stringify(subscription) : "",
+          newData: JSON.stringify(updateUserSubscriptionLog),
+          section: "SUBSCRIPTION PLAN",
+        });
+      }
+
+      if (updateSubscriptionPlanStatusLog) {
+        await createAuditLog({
+          action: "CHANGE SUBSCRIPTION PLAN",
+          oldData: subscription ? JSON.stringify(subscription) : "",
+          newData: JSON.stringify(updateSubscriptionPlanStatusLog),
+          section: "SUBSCRIPTION PLAN",
+        });
+      }
+    }
+  });
+};
+
+export const sendExpiryNotification = async () => {
+  const subscriptionPlans = await findAllSubscriptionPlans();
+  const freePlan = await findFreePlan();
+  const users = await findAllActiveUsers();
+
+  subscriptionPlans.forEach(async (subscription: SubscriptionPlan) => {
+    if (subscription?.id && subscription?.endDate && subscription?.userId) {
+      // 5 day to end date
+
+      if (freePlan?.id !== subscription?.planId && !subscription?.autoRenew) {
+        for (let i = 5; i > 0; i--) {
+          if (
+            format(new Date(), "yyyy-MM-dd") >=
+            format(
+              moment(subscription.endDate).subtract(i, "days").toDate(),
+              "yyyy-MM-dd",
+            )
+          ) {
+            const newNotification = `Your subscription plan will expire in ${i} days. Please renew your subscription plan to continue using our services.`;
+
+            await createNotification(
+              "Subscription Plan Expiry",
+              newNotification,
+              subscription.userId,
+            );
+
+            await createAuditLog({
+              user: JSON.stringify(subscription),
+              action: "NEW NOTIFICATION",
+              newData: JSON.stringify({
+                title: "Subscription Plan Expiry",
+                message: newNotification,
+                receiverId: subscription.userId,
+                senderId: null,
+              }),
+              section: "NOTIFICATION",
+            });
+
+            sendSingleMail({
+              from: MAIL_CONFIG.sender,
+              to:
+                users?.find((user: User) => user.id === subscription.userId)
+                  ?.emailAddress || "",
+              context: {
+                title: "Subscription Plan Expiry",
+                name:
+                  users?.find((user: User) => user.id === subscription.userId)
+                    ?.firstName || "",
+                message: `Your subscription plan will expire in ${i} days. Please renew your subscription plan to continue using our services.`,
+              },
+              subject: `Subscription Plan Expiry`,
+              template: "userNotification.views",
+            });
+          }
+        }
+      }
+    }
+  });
 };

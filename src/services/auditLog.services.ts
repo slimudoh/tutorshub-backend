@@ -1,3 +1,4 @@
+import { Op } from "@sequelize/core";
 import AuditLog from "../models/auditLog.models";
 import crypto from "crypto";
 
@@ -21,25 +22,39 @@ export const createAuditLog = async (payload: {
 };
 
 export const getAuditLogs = async (
+  keyword?: string,
   offsetSize?: number,
   newPageSize?: number,
 ) => {
-  const auditLogs = await AuditLog.findAll({
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
-    order: [["createdAt", "DESC"]],
-    raw: true,
-  });
+  let where = {};
 
-  if (!offsetSize && !newPageSize) {
-    return await AuditLog.count();
+  if (keyword) {
+    where = {
+      [Op.or]: [
+        { user: { [Op.like]: `%${keyword}%` } },
+        { action: { [Op.like]: `%${keyword}%` } },
+        { oldData: { [Op.like]: `%${keyword}%` } },
+        { newData: { [Op.like]: `%${keyword}%` } },
+        { section: { [Op.like]: `%${keyword}%` } },
+      ],
+    };
   }
 
-  return auditLogs;
+  if (!offsetSize && !newPageSize) {
+    return await AuditLog.count({ where });
+  }
+
+  return await AuditLog.findAll({
+    where,
+    order: [["createdAt", "DESC"]],
+    ...(offsetSize && { offset: offsetSize }),
+    ...(newPageSize && { limit: newPageSize }),
+    raw: true,
+  });
 };
 
 export const excludeFields = (data: string) => {
-  const parsedData = JSON.parse(data);
+  const parsedData = JSON.parse(data) ?? {};
   const {
     password,
     createdAt,
@@ -51,5 +66,6 @@ export const excludeFields = (data: string) => {
     tokenExpiryStatus,
     ...rest
   } = parsedData;
+
   return JSON.stringify(rest);
 };

@@ -4,7 +4,7 @@ import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
   fetchAdminReviews,
-  fetchGeneralReviews,
+  fetchHomeReviews,
   fetchUserReviews,
 } from "../services/review.services";
 
@@ -94,13 +94,13 @@ export const getUserReviews: RequestHandler = async (
   }
 };
 
-export const getGeneralReviews: RequestHandler = async (
+export const getHomeReviews: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
   try {
-    const reviews = await fetchGeneralReviews();
+    const reviews = await fetchHomeReviews();
 
     response.status(201).json({
       data: reviews,

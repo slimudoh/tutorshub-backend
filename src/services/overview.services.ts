@@ -3,69 +3,48 @@ import Transaction from "../models/transaction.models";
 import User from "../models/user.models";
 import {
   CATEGORY,
-  CONTACT,
+  MESSAGE,
   CURRENCY,
   LESSON,
   REPORT,
   TRANSACTION_TYPE,
   USER,
+  INSTRUCTOR,
 } from "../utils/constant";
 import Currency from "../models/currency.models";
-import Enrollee from "../models/enrollee.models";
 import Review from "../models/review.models";
 import Category from "../models/category.models";
 import Newsletter from "../models/newsletter.models";
 import PricingPlan from "../models/pricingPlan.models";
-import ContactMessage from "../models/ContactMessage.models";
+import Message from "../models/message.models";
 import AuditLog from "../models/auditLog.models";
 import { Op } from "@sequelize/core";
 import Report from "../models/report.models";
+import LessonEnrollment from "../models/lessonEnrollment.models";
+import Instructor from "../models/instructor.models";
 
 export const getAdminOverviewData = async () => {
   const transactions = await Transaction.count();
-  const enrollees = await Enrollee.count();
+  const enrollees = await LessonEnrollment.count();
   const reviews = await Review.count();
   const currencies = await Currency.count({
     where: {
       status: CURRENCY.ACTIVE,
     },
   });
-  const user = await User.count({
-    where: {
-      status: USER.ACTIVE,
-    },
-  });
-  const categories = await Category.count({
-    where: {
-      status: CATEGORY.ACTIVE,
-    },
-  });
-  const lessons = await Lesson.count({
-    where: {
-      status: LESSON.ACTIVE,
-    },
-  });
+  const users = await User.count();
+  const instructors = await Instructor.count();
+  const categories = await Category.count();
+  const lessons = await Lesson.count();
   const newsletterSubscribers = await Newsletter.count();
   const pricing = await PricingPlan.count();
-  const contactMessages = await ContactMessage.count({
-    where: {
-      status: {
-        [Op.in]: [CONTACT.NEW, CONTACT.IN_PROGRESS],
-      },
-    },
-  });
-  const reports = await Report.count({
-    where: {
-      status: {
-        [Op.in]: [REPORT.PENDING, REPORT.UNDER_REVIEW],
-      },
-    },
-  });
-
+  const messages = await Message.count();
+  const reports = await Report.count();
   const auditLogs = await AuditLog.count();
 
   return {
-    user,
+    users,
+    instructors,
     lessons,
     currencies,
     transactions,
@@ -75,7 +54,7 @@ export const getAdminOverviewData = async () => {
     pricing,
     newsletterSubscribers,
     auditLogs,
-    contactMessages,
+    messages,
     reports,
   };
 };
@@ -93,7 +72,7 @@ export const getUserOverviewData = async (userId: string) => {
     },
   });
 
-  const enrollees = await Enrollee.count({
+  const enrollees = await LessonEnrollment.count({
     where: {
       userId,
     },

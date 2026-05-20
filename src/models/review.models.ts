@@ -8,6 +8,7 @@ class Review extends Model {
   declare rating: number | null;
   declare comment: string | null;
   declare isPublic: boolean | null;
+  declare status: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -39,6 +40,10 @@ Review.init(
       type: DataTypes.BOOLEAN,
       allowNull: true,
       defaultValue: false,
+    },
+    status: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

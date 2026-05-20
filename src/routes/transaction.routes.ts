@@ -2,27 +2,24 @@ import { Router } from "express";
 import isAuth from "../middlewares/auth.middlewares";
 import isAdmin from "../middlewares/admin.middlewares";
 import {
-  getUserPayments,
-  getAdminEarnings,
-  getAdminPayouts,
-  getAdminPayments,
-  getUserEarnings,
-  getUserPayouts,
+  getPayments,
+  getEarnings,
+  getPayouts,
+  getAllTransactions,
+  getTransactionDetails,
 } from "../controllers/transaction.controllers";
 import isUser from "../middlewares/user.middlewares";
 
 const router = Router();
 
-// router.get("/admin-earnings", isAuth, isAdmin, getAdminEarnings);
+router.get("/", isAuth, isAdmin, getAllTransactions);
 
-// router.get("/admin-payouts", isAuth, isAdmin, getAdminPayouts);
+router.get("/earnings", isAuth, isUser, getEarnings);
 
-// router.get("/admin-payments", isAuth, isAdmin, getAdminPayments);
+router.get("/payouts", isAuth, isUser, getPayouts);
 
-// router.get("/user-earnings", isAuth, isUser, getUserEarnings);
+router.get("/payments", isAuth, isUser, getPayments);
 
-// router.get("/user-payouts", isAuth, isUser, getUserPayouts);
-
-// router.get("/user-payments", isAuth, isUser, getUserPayments);
+router.get("/:id", isAuth, isUser, getTransactionDetails);
 
 export default router;

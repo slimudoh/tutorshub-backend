@@ -1,30 +1,6 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// id
-// title
-// instructor_id
-// start_time
-// duration
-// max_students
-// is_free
-// status
-
-// lessons
-// -------------------
-// id
-// title
-// instructor_id
-// is_free = true
-// credits_required = 0
-// start_time
-// duration
-// max_students
-// status
-
-// is_free = false
-// credits_required = 1
-
 // late_join_minutes INT DEFAULT 10
 
 class Lesson extends Model {
@@ -35,10 +11,17 @@ class Lesson extends Model {
   declare description: string | null;
   declare level: string | null;
   declare status: string | null;
-  declare category: string | null;
   declare language: string | null;
   declare duration: string | null;
   declare isLive: boolean | null;
+  declare isFree: boolean | null;
+  declare creditsRequired: number | null;
+  declare lateJoinMinutes: number | null;
+  declare maxStudents: number | null;
+  declare startTime: Date | null;
+  declare joinLink: string | null;
+  declare meetingId: string | null;
+  declare meetingPassword: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -74,10 +57,6 @@ Lesson.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    category: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
     language: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -88,6 +67,39 @@ Lesson.init(
     },
     isLive: {
       type: DataTypes.BOOLEAN,
+      allowNull: true,
+    },
+    isFree: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+    },
+    creditsRequired: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    lateJoinMinutes: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 10,
+    },
+    maxStudents: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    startTime: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    joinLink: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    meetingId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    meetingPassword: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },

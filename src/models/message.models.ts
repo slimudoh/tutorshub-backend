@@ -1,7 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-class ContactMessage extends Model {
+class Message extends Model {
   declare id: string | null;
   declare userId: string | null;
   declare name: string | null;
@@ -13,7 +13,7 @@ class ContactMessage extends Model {
   declare updatedAt: Date;
 }
 
-ContactMessage.init(
+Message.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -46,9 +46,9 @@ ContactMessage.init(
     },
   },
   {
-    tableName: "contactMessages",
+    tableName: "messages",
     sequelize,
   },
 );
 
-export default ContactMessage;
+export default Message;

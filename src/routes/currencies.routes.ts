@@ -18,8 +18,6 @@ router.get("/", isAuth, isAdmin, getCurrencies);
 
 router.get("/active-currencies", getAllActiveCurrencies);
 
-// router.get("/update-all-currencies", getNewCurrencyRates);
-
 // router.patch(
 //   "/review-currencies",
 //   check("id").notEmpty().withMessage("ID is required."),

@@ -17,7 +17,7 @@ import Validate from "../middlewares/validate.middlewares";
 
 const router = Router();
 
-// router.get("/", getAllActiveLessons);
+router.get("/", getAllActiveLessons);
 
 router.get("/categories/:slug", getLessonsByCategory);
 

@@ -1,27 +1,27 @@
 import { Op } from "@sequelize/core";
-import ContactMessage from "../models/ContactMessage.models";
-import { CONTACT, CONTACT_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import Message from "../models/message.models";
+import { MESSAGE, MESSAGE_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import crypto from "crypto";
 
-export const addContactMessage = async (
+export const addMessage = async (
   name: string,
   email: string,
   subject: string,
   message: string,
   userId?: string,
 ) => {
-  return await ContactMessage.create({
+  return await Message.create({
     id: crypto.randomUUID(),
     name,
     email,
     subject,
     message,
     userId: userId || null,
-    status: CONTACT.NEW,
+    status: MESSAGE.NEW,
   });
 };
 
-export const getContactMessages = async (
+export const getMessages = async (
   keyword: string,
   status: string,
   offsetSize?: number,
@@ -48,10 +48,10 @@ export const getContactMessages = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await ContactMessage.count({ where });
+    return await Message.count({ where });
   }
 
-  return await ContactMessage.findAll({
+  return await Message.findAll({
     where,
 
     order: [["createdAt", "DESC"]],
@@ -59,26 +59,23 @@ export const getContactMessages = async (
     ...(newPageSize && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: CONTACT_EXCLUDED_ATTRIBUTES,
+        exclude: MESSAGE_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
 };
 
-export const getContactMessageById = async (id: string) => {
-  return await ContactMessage.findOne({
+export const getMessageById = async (id: string) => {
+  return await Message.findOne({
     where: { id },
     attributes: {
-      exclude: CONTACT_EXCLUDED_ATTRIBUTES,
+      exclude: MESSAGE_EXCLUDED_ATTRIBUTES,
     },
     raw: true,
   });
 };
 
-export const updateContactMessageStatus = async (
-  id: string,
-  status: string,
-) => {
-  await ContactMessage.update({ status }, { where: { id } });
+export const updateMessageStatus = async (id: string, status: string) => {
+  await Message.update({ status }, { where: { id } });
 };

@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { REVIEW_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import { REVIEW, REVIEW_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import Review from "../models/review.models";
 
 export const fetchAdminReviews = async (
@@ -96,9 +96,9 @@ export const fetchUserReviews = async (
   });
 };
 
-export const fetchGeneralReviews = async (excludeAttributes = true) => {
+export const fetchHomeReviews = async (excludeAttributes = true) => {
   return await Review.findAll({
-    where: { isPublic: true },
+    where: { isPublic: true, status: REVIEW.ACTIVE },
     order: [["createdAt", "DESC"]],
     limit: 10,
     ...(excludeAttributes && {

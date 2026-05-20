@@ -1,7 +1,8 @@
-import { APP_NAME } from "../utils/constant";
+import { APP_NAME, APP_URL, MAIL_CONFIG } from "../utils/constant";
 import transporter from "../utils/mailer";
 import { Options } from "nodemailer/lib/mailer";
 import { getNotificationSettingsByUserEmail } from "./setting.services";
+import { getAllActiveAdminUsers } from "./user.services";
 
 type ExtendedOptions = Options & {
   template: string;
@@ -99,4 +100,54 @@ export const sendMultipleMails = async ({
     return transporter.sendMail(options);
   });
   await Promise.all(emailPromises);
+};
+
+export const sendAdminEmailMessages = async ({
+  title,
+  subject,
+  message,
+}: {
+  title: string;
+  subject: string;
+  message: string;
+}) => {
+  const adminUsers = await getAllActiveAdminUsers();
+  await sendMultipleMails({
+    from: MAIL_CONFIG.sender,
+    dataList: adminUsers.map((adminUser) => {
+      return {
+        name: adminUser?.firstName || "",
+        email: adminUser?.emailAddress || "",
+      };
+    }),
+    context: {
+      title,
+      message,
+      link: `${APP_URL}/admin`,
+    },
+    subject,
+    template: "adminNotification.views",
+  });
+};
+
+export const sendUserEmailNotification = async ({
+  emailAddress,
+  userName,
+}: {
+  emailAddress: string;
+  userName: string;
+}) => {
+  sendSingleMail({
+    from: MAIL_CONFIG.sender,
+    to: emailAddress,
+    context: {
+      title: "You have a notification from TutorsHub",
+      userName,
+      message:
+        "You have received a new notification from TutorsHub. Please login to your account to view the notification.",
+      link: `${APP_URL}/user/notifications`,
+    },
+    subject: `You have a notification from TutorsHub`,
+    template: "userNotification.views",
+  });
 };

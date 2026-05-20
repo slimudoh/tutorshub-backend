@@ -3,10 +3,9 @@ import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
-  deleteUserNotification,
   findNotificationById,
   getUserNotifications,
-  markUserNotificationAsRead,
+  readAllUserNotifications,
 } from "../services/notification.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
@@ -23,24 +22,18 @@ export const getNotifications: RequestHandler = async (
   try {
     const userId = (request as CustomRequest).user?.id;
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { pageNumber, pageSize } = request.query;
     const newPageNumber = Number(pageNumber);
     const newPageSize = Number(pageSize);
     const offsetSize = (newPageNumber - 1) * newPageSize;
 
     const messages = await getUserNotifications(
       userId,
-      keyword as string,
-      status as string,
       offsetSize,
       newPageSize,
     );
 
-    const totalPages = await getUserNotifications(
-      userId,
-      keyword as string,
-      status as string,
-    );
+    const totalPages = await getUserNotifications(userId);
 
     response.status(201).json({
       currentPage: newPageNumber,
@@ -58,7 +51,7 @@ export const getNotifications: RequestHandler = async (
   }
 };
 
-export const markNotificationAsRead: RequestHandler = async (
+export const getNotificationById: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -81,22 +74,8 @@ export const markNotificationAsRead: RequestHandler = async (
       });
     }
 
-    await markUserNotificationAsRead(id);
-
-    const updatedNotification = await findNotificationById(id);
-
-    const user = await findUserById(userId);
-
-    await createAuditLog({
-      user: JSON.stringify(user),
-      action: "MARK NOTIFICATION AS READ",
-      oldData: JSON.stringify(message),
-      newData: JSON.stringify(updatedNotification),
-      section: "NOTIFICATION",
-    });
-
     response.status(200).json({
-      message: "Notification marked as read successfully",
+      data: message,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -104,42 +83,31 @@ export const markNotificationAsRead: RequestHandler = async (
   }
 };
 
-export const deleteNotification: RequestHandler = async (
+export const readAllNotifications: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
   try {
     const userId = (request as CustomRequest).user?.id;
-    const { id } = request.params;
 
-    const message = await findNotificationById(id);
+    const { pageNumber, pageSize } = request.query;
+    const newPageNumber = Number(pageNumber);
+    const newPageSize = Number(pageSize);
+    const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    if (!message) {
-      return response.status(404).json({
-        message: "Notification not found",
-      });
-    }
-
-    if (message.receiverId !== userId) {
-      return response.status(403).json({
-        message: "You are not authorized to perform this action",
-      });
-    }
-
-    await deleteUserNotification(id);
+    await readAllUserNotifications(userId, offsetSize, newPageSize);
 
     const user = await findUserById(userId);
 
     await createAuditLog({
       user: JSON.stringify(user),
-      action: "DELETE NOTIFICATION",
-      newData: JSON.stringify(message),
+      action: "READ ALL NOTIFICATIONS",
       section: "NOTIFICATION",
     });
 
     response.status(200).json({
-      message: "Notification deleted successfully",
+      message: "All notifications marked as read successfully",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

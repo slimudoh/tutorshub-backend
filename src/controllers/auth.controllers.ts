@@ -32,7 +32,6 @@ import { createNotification } from "../services/notification.services";
 import {
   createUserSubscription,
   findFreePlan,
-  findPricingPlanById,
 } from "../services/pricing.services";
 
 export const registerUser: RequestHandler = async (
@@ -41,34 +40,18 @@ export const registerUser: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { firstName, lastName, emailAddress, password, pricing } =
+    const { firstName, lastName, emailAddress, password, country } =
       request.body;
 
-    const user = await createUser(firstName, lastName, emailAddress, password);
-
-    sendSingleMail({
-      from: MAIL_CONFIG.sender,
-      to: emailAddress,
-      subject: `Welcome to ${APP_NAME}`,
-      template: "register.views",
-      context: {
-        name: user.firstName,
-        token: user.token,
-      },
-    });
-
-    await createAuditLog({
-      user: JSON.stringify(user),
-      action: "REGISTER",
-      newData: JSON.stringify(user),
-      section: "REGISTER",
-    });
+    const user = await createUser(
+      firstName,
+      lastName,
+      emailAddress,
+      password,
+      country,
+    );
 
     let plan = await findFreePlan();
-
-    if (pricing) {
-      plan = await findPricingPlanById(pricing);
-    }
 
     if (plan?.id) {
       const subscription = await createUserSubscription(user, plan);
@@ -82,7 +65,7 @@ export const registerUser: RequestHandler = async (
     }
 
     if (user?.id) {
-      await createNotificationSettingsByUserId(user.id, [
+      const notification = await createNotificationSettingsByUserId(user.id, [
         { id: "emailNotification", value: true },
         { id: "pushNotification", value: true },
         { id: "login", value: true },
@@ -106,7 +89,32 @@ export const registerUser: RequestHandler = async (
         { id: "bookingCompleted", value: true },
         { id: "bookingRescheduled", value: true },
       ]);
+
+      await createAuditLog({
+        user: JSON.stringify(user),
+        action: "CREATE NOTIFICATION SETTINGS",
+        newData: JSON.stringify(notification),
+        section: "SETTINGS",
+      });
     }
+
+    sendSingleMail({
+      from: MAIL_CONFIG.sender,
+      to: emailAddress,
+      subject: `Welcome to ${APP_NAME}`,
+      template: "register.views",
+      context: {
+        name: user.firstName,
+        token: user.token,
+      },
+    });
+
+    await createAuditLog({
+      user: JSON.stringify(user),
+      action: "REGISTER",
+      newData: JSON.stringify(user),
+      section: "REGISTER",
+    });
 
     response.status(201).json({
       message: `Profile created successfully. A verification email has been sent to ${emailAddress} to verify your account. Please check your email for verification details and also check  your spam mail if you can't find it in your inbox.`,
@@ -243,15 +251,7 @@ export const verifyEmail: RequestHandler = async (
       section: "REGISTRATION",
     });
 
-    const newNotification = `
-   <p> We're excited to have you join our learning community. You're now one step closer to gaining new skills and achieving your goals.</p>
-
-   <p>Get started by exploring your dashboard, choosing a lesson that interests you, and beginning your learning journey today.</p>
-   <p>If you ever need help, we're here to support you every step of the way.</p>
-
-   <p>Happy learning!</p>
-
-    `;
+    const newNotification = `We're excited to have you join our learning community. You're now one step closer to gaining new skills and achieving your goals. Get started by exploring your dashboard, choosing a lesson that interests you, and beginning your learning journey today. If you ever need help, we're here to support you every step of the way. Happy learning!`;
 
     await createNotification("Welcome!!!", newNotification, user?.id ?? "");
 

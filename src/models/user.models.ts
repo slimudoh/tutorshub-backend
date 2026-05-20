@@ -26,7 +26,7 @@ class User extends Model {
   declare tokenExpiry: Date | null;
   declare tokenExpiryStatus: string | null;
   declare deactivationDetails: DeletedAccount | null;
-  declare subscriptionPlan: SubscriptionPlan[] | null;
+  declare subscriptionPlan: SubscriptionPlan | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }

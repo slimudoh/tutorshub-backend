@@ -1,5 +1,15 @@
 import Setting from "../models/setting.models";
-import { findUserByEmail, findUserById } from "./user.services";
+import { findUserByEmail } from "./user.services";
+
+export const findUserNotificationSettings = async (userId: string) => {
+  const settings = await Setting.findOne({
+    where: {
+      userId,
+    },
+  });
+
+  return settings;
+};
 
 export const getNotificationSettingsByUserId = async (userId: string) => {
   const settings = await Setting.findOne({

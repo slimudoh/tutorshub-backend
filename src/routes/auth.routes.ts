@@ -36,6 +36,7 @@ router.post(
         throw new Error("Email address already taken.");
       }
     }),
+  check("country").notEmpty().withMessage("Country of residence is required."),
   Validate,
   registerUser,
 );
