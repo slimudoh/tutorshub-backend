@@ -1,15 +1,6 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
 
-// instructor_earnings
-// -------------------
-// id
-// instructor_id
-// lesson_id
-// students_count
-// amount
-// status
-
 class Transaction extends Model {
   declare id: string | null;
   declare userId: string | null;
@@ -18,6 +9,7 @@ class Transaction extends Model {
   declare reference: string | null;
   declare status: string | null;
   declare channel: string | null;
+  declare purpose: string | null;
   declare transactionType: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
@@ -52,6 +44,10 @@ Transaction.init(
     },
     channel: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    purpose: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     transactionType: {

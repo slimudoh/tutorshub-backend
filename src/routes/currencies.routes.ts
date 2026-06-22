@@ -18,15 +18,15 @@ router.get("/", isAuth, isAdmin, getCurrencies);
 
 router.get("/active-currencies", getAllActiveCurrencies);
 
-// router.patch(
-//   "/review-currencies",
-//   check("id").notEmpty().withMessage("ID is required."),
-//   check("status").notEmpty().withMessage("Status is required."),
-//   Validate,
-//   isAuth,
-//   isAdmin,
-//   reviewCurrencies,
-// );
+router.patch(
+  "/review-currencies",
+  check("id").notEmpty().withMessage("ID is required."),
+  check("status").notEmpty().withMessage("Status is required."),
+  Validate,
+  isAuth,
+  isAdmin,
+  reviewCurrencies,
+);
 
 router.patch(
   "/update-currencies",

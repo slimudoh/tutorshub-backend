@@ -19,7 +19,7 @@ export const getAdminOverview: RequestHandler = async (
   try {
     const overviewData = await getAdminOverviewData();
 
-    response.status(201).json({
+    response.status(200).json({
       data: overviewData,
     });
   } catch (err) {
@@ -38,7 +38,7 @@ export const getInstructorOverview: RequestHandler = async (
 
     const overviewData = await getUserOverviewData(userId);
 
-    response.status(201).json({
+    response.status(200).json({
       data: overviewData,
     });
   } catch (err) {

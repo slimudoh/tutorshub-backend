@@ -1,6 +1,7 @@
+import "dotenv/config";
 import express from "express";
-import dotenv from "dotenv";
 import sequelize from "./utils/db";
+import { defineAssociations } from "./models/associations";
 import { json } from "body-parser";
 import cors from "cors";
 import {
@@ -34,7 +35,6 @@ import User from "./models/user.models";
 import BlackListToken from "./models/blackListToken.models";
 import AuditLog from "./models/auditLog.models";
 import Lesson from "./models/lesson.models";
-import LessonHistory from "./models/lessonHistory.models";
 import Setting from "./models/setting.models";
 import DeletedAccount from "./models/deletedAccount.models";
 import Notification from "./models/notification.models";
@@ -52,8 +52,8 @@ import Category from "./models/category.models";
 import Message from "./models/message.models";
 import InstructorEarning from "./models/instructorEarning.models";
 import Instructor from "./models/instructor.models";
-
-dotenv.config();
+import LessonAttendance from "./models/lessonAttendance.models";
+import ReviewComment from "./models/reviewComment.models";
 
 const app = express();
 const PORT = process.env.PORT ?? 8088;
@@ -83,9 +83,9 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-app.use(express.static(path.join(__dirname, "images")));
 app.use(json());
 app.use(cors(corsOptions));
+app.use(express.static(path.join(__dirname, "images")));
 
 app.set("trust proxy", 1);
 app.use("/api/v1", apiLimiter);
@@ -117,12 +117,13 @@ sequelize
   .then(() => {
     console.log("Connected successfully.");
 
+    defineAssociations();
+
     User.sync();
     BlackListToken.sync({ alter: true });
     AuditLog.sync({ alter: true });
     Setting.sync({ alter: true });
     Lesson.sync({ alter: true });
-    LessonHistory.sync({ alter: true });
     DeletedAccount.sync({ alter: true });
     Notification.sync({ alter: true });
     Transaction.sync({ alter: true });
@@ -139,6 +140,8 @@ sequelize
     Message.sync({ alter: true });
     InstructorEarning.sync({ alter: true });
     Instructor.sync({ alter: true });
+    LessonAttendance.sync({ alter: true });
+    ReviewComment.sync({ alter: true });
 
     app.listen(PORT, () => {
       console.log(
@@ -150,4 +153,5 @@ sequelize
   })
   .catch((error) => {
     console.error("Unable to connect to the database: ", error);
+    process.exit(1);
   });

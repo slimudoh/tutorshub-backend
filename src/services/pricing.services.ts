@@ -1,4 +1,4 @@
-import { Op } from "@sequelize/core";
+import { literal, Op } from "@sequelize/core";
 import PricingPlan from "../models/pricingPlan.models";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import {
@@ -16,18 +16,17 @@ import { sendSingleMail } from "./email.services";
 import { findAllActiveUsers } from "./user.services";
 
 export const findAllPricingPlans = async (
-  excludeAttributes = true,
   includeFree = true,
+  excludeAttributes = true,
 ) => {
+  console.log({ includeFree });
   return await PricingPlan.findAll({
     where: {
       ...(includeFree && { amount: { [Op.gt]: 0 } }),
       status: PRICING.ACTIVE,
     },
     ...(excludeAttributes && {
-      attributes: {
-        exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES,
-      },
+      attributes: { exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES },
     }),
     order: [["createdAt", "ASC"]],
     raw: true,
@@ -55,34 +54,15 @@ export const findUsersSubscriptionPlans = async (userId: string) => {
 };
 
 export const findPricingPlanById = async (id: string) => {
-  return await PricingPlan.findOne({
-    where: {
-      id,
-    },
-    raw: true,
-  });
+  return await PricingPlan.findOne({ where: { id }, raw: true });
 };
 
 export const findPricingBySlug = async (slug: string) => {
-  return await PricingPlan.findOne({
-    where: {
-      slug,
-    },
-    raw: true,
-  });
+  return await PricingPlan.findOne({ where: { slug }, raw: true });
 };
 
 export const updatePricingPlanStatus = async (id: string, status: string) => {
-  return await PricingPlan.update(
-    {
-      status,
-    },
-    {
-      where: {
-        id,
-      },
-    },
-  );
+  return await PricingPlan.update({ status }, { where: { id } });
 };
 
 export const fetchAdminPricingPlans = async (
@@ -117,8 +97,8 @@ export const fetchAdminPricingPlans = async (
   return await PricingPlan.findAll({
     where: { ...where },
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
         exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES,
@@ -129,20 +109,18 @@ export const fetchAdminPricingPlans = async (
 };
 
 export const findPlanByName = async (title: string) => {
-  return await PricingPlan.findOne({
-    where: {
-      title,
-    },
-    raw: true,
-  });
+  return await PricingPlan.findOne({ where: { title }, raw: true });
 };
 
 export const addPricingPlan = async (data: {
   title: string;
   slug: string;
   description: string;
-  amount: number;
   currency: string;
+  amount: number;
+  amountPerSession: number;
+  instructorPercentageFee: number;
+  platformPercentageFee: number;
   billingCycle: string;
   lessonLimit: number;
   features: string[];
@@ -154,6 +132,9 @@ export const addPricingPlan = async (data: {
     description: data.description,
     amount: data.amount,
     currency: data.currency,
+    amountPerSession: data.amountPerSession,
+    instructorPercentageFee: data.instructorPercentageFee,
+    platformPercentageFee: data.platformPercentageFee,
     billingCycle: data.billingCycle,
     lessonLimit: data.lessonLimit,
     isUnlimited: false,
@@ -167,8 +148,11 @@ export const updatePricingPlan = async (data: {
   title: string;
   slug: string;
   description: string;
-  amount: number;
   currency: string;
+  amount: number;
+  amountPerSession: number;
+  instructorPercentageFee: number;
+  platformPercentageFee: number;
   billingCycle: string;
   lessonLimit: number;
   features: string[];
@@ -178,8 +162,11 @@ export const updatePricingPlan = async (data: {
       title: data.title,
       slug: data.slug,
       description: data.description,
-      amount: data.amount,
       currency: data.currency,
+      amount: data.amount,
+      amountPerSession: data.amountPerSession,
+      instructorPercentageFee: data.instructorPercentageFee,
+      platformPercentageFee: data.platformPercentageFee,
       billingCycle: data.billingCycle,
       lessonLimit: data.lessonLimit,
       features: JSON.stringify(data.features),
@@ -194,27 +181,25 @@ export const updatePricingPlan = async (data: {
 
 export const findFreePlan = async () => {
   return await PricingPlan.findOne({
-    where: {
-      amount: 0,
-    },
-    attributes: {
-      exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES,
-    },
+    where: { amount: 0 },
+    attributes: { exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES },
     raw: true,
   });
 };
 
-export const createUserSubscription = async (user: User, plan: PricingPlan) => {
-  const autoRenew = !plan?.amount || plan.amount < 1;
-
+export const createUserSubscription = async (
+  user: User,
+  plan: PricingPlan,
+  autoRenew: boolean,
+) => {
   return await SubscriptionPlan.create({
     id: crypto.randomUUID(),
     userId: user.id,
     planId: plan.id,
-    subscriptionNumber: `SUB-${user?.firstName?.substring(0, 3).toUpperCase()}${user?.lastName?.substring(0, 3).toUpperCase()}-${Date.now()}`,
+    subscriptionNumber: `SUB-${user.firstName?.substring(0, 3).toUpperCase()}${user.lastName?.substring(0, 3).toUpperCase()}-${Date.now()}`,
     autoRenew,
     startDate: new Date(),
-    endDate: moment().add(1, "month").toDate(),
+    endDate: oneMonthFromNow(),
     creditsBalance: plan.lessonLimit,
     status: SUBSCRIPTION.ACTIVE,
   });
@@ -227,18 +212,8 @@ export const updateUserSubscription = async (
   endDate: Date,
 ) => {
   return await SubscriptionPlan.update(
-    {
-      startDate,
-      endDate,
-      status: SUBSCRIPTION.ACTIVE,
-    },
-    {
-      where: {
-        id: subscriptionId,
-        userId,
-        status: SUBSCRIPTION.ACTIVE,
-      },
-    },
+    { startDate, endDate, status: SUBSCRIPTION.ACTIVE },
+    { where: { id: subscriptionId, userId, status: SUBSCRIPTION.ACTIVE } },
   );
 };
 
@@ -259,16 +234,8 @@ export const updateSubscriptionAutoRenew = async (
   autoRenew: boolean,
 ) => {
   return await SubscriptionPlan.update(
-    {
-      autoRenew,
-    },
-    {
-      where: {
-        id,
-        userId,
-        status: SUBSCRIPTION.ACTIVE,
-      },
-    },
+    { autoRenew },
+    { where: { id, userId, status: SUBSCRIPTION.ACTIVE } },
   );
 };
 
@@ -278,143 +245,141 @@ export const updateSubscriptionPlanStatus = async (
   status: string,
 ) => {
   return await SubscriptionPlan.update(
-    {
-      status,
-    },
-    {
-      where: {
-        id,
-        userId,
-        status: SUBSCRIPTION.ACTIVE,
-      },
-    },
+    { status },
+    { where: { id, userId, status: SUBSCRIPTION.ACTIVE } },
   );
 };
 
 export const renewSubscriptionPlans = async () => {
-  const subscriptionPlans = await findAllSubscriptionPlans();
-  const freePlan = await findFreePlan();
+  const [subscriptionPlans, freePlan] = await Promise.all([
+    findAllSubscriptionPlans(),
+    findFreePlan(),
+  ]);
 
-  subscriptionPlans.forEach(async (subscription: SubscriptionPlan) => {
-    if (subscription?.id && subscription?.endDate && subscription?.userId) {
-      let updateUserSubscriptionLog = null;
-      let updateSubscriptionPlanStatusLog = null;
-
-      if (
-        format(new Date(), "yyyy-MM-dd") >=
-        format(subscription.endDate, "yyyy-MM-dd")
-      ) {
-        if (subscription?.autoRenew) {
-          if (freePlan?.id === subscription?.planId) {
-            updateUserSubscriptionLog = await updateUserSubscription(
-              subscription.userId,
-              subscription.id,
-              new Date(),
-              moment().add(1, "month").toDate(),
-            );
-          } else {
-            // process payment and if it is successful update sub plan
-            updateUserSubscriptionLog = await updateUserSubscription(
-              subscription.userId,
-              subscription.id,
-              new Date(),
-              moment().add(1, "month").toDate(),
-            );
-
-            // if payment failed and autoRenew is true, update subscription status to expired
-            updateSubscriptionPlanStatusLog =
-              await updateSubscriptionPlanStatus(
-                subscription.id,
-                subscription.userId,
-                SUBSCRIPTION.EXPIRED,
-              );
-          }
-        } else {
-          updateSubscriptionPlanStatusLog = await updateSubscriptionPlanStatus(
-            subscription.id,
-            subscription.userId,
-            SUBSCRIPTION.EXPIRED,
-          );
-        }
-      }
-
-      if (updateUserSubscriptionLog) {
-        await createAuditLog({
-          action: "CHANGE SUBSCRIPTION PLAN",
-          oldData: subscription ? JSON.stringify(subscription) : "",
-          newData: JSON.stringify(updateUserSubscriptionLog),
-          section: "SUBSCRIPTION PLAN",
-        });
-      }
-
-      if (updateSubscriptionPlanStatusLog) {
-        await createAuditLog({
-          action: "CHANGE SUBSCRIPTION PLAN",
-          oldData: subscription ? JSON.stringify(subscription) : "",
-          newData: JSON.stringify(updateSubscriptionPlanStatusLog),
-          section: "SUBSCRIPTION PLAN",
-        });
-      }
+  for (const subscription of subscriptionPlans) {
+    if (!subscription?.id || !subscription?.endDate || !subscription?.userId) {
+      continue;
     }
-  });
+
+    if (!isExpired(subscription.endDate)) continue;
+
+    let updateLog = null;
+    let statusLog = null;
+
+    if (subscription.autoRenew) {
+      updateLog = await updateUserSubscription(
+        subscription.userId,
+        subscription.id,
+        new Date(),
+        oneMonthFromNow(),
+      );
+
+      // if paid plan and payment failed, expire instead
+      if (freePlan?.id !== subscription.planId) {
+        statusLog = await updateSubscriptionPlanStatus(
+          subscription.id,
+          subscription.userId,
+          SUBSCRIPTION.EXPIRED,
+        );
+      }
+    } else {
+      statusLog = await updateSubscriptionPlanStatus(
+        subscription.id,
+        subscription.userId,
+        SUBSCRIPTION.EXPIRED,
+      );
+    }
+
+    const auditBase = {
+      action: "CHANGE SUBSCRIPTION PLAN",
+      oldData: JSON.stringify(subscription),
+      section: "SUBSCRIPTION PLAN",
+    };
+
+    if (updateLog) {
+      await createAuditLog({
+        ...auditBase,
+        newData: JSON.stringify(updateLog),
+      });
+    }
+
+    if (statusLog) {
+      await createAuditLog({
+        ...auditBase,
+        newData: JSON.stringify(statusLog),
+      });
+    }
+  }
 };
 
 export const sendExpiryNotification = async () => {
-  const subscriptionPlans = await findAllSubscriptionPlans();
-  const freePlan = await findFreePlan();
-  const users = await findAllActiveUsers();
+  const [subscriptionPlans, freePlan, users] = await Promise.all([
+    findAllSubscriptionPlans(),
+    findFreePlan(),
+    findAllActiveUsers(),
+  ]);
 
-  subscriptionPlans.forEach(async (subscription: SubscriptionPlan) => {
-    if (subscription?.id && subscription?.endDate && subscription?.userId) {
-      // 5 day to end date
-
-      if (freePlan?.id !== subscription?.planId && !subscription?.autoRenew) {
-        for (let i = 5; i > 0; i--) {
-          if (
-            format(new Date(), "yyyy-MM-dd") >=
-            format(
-              moment(subscription.endDate).subtract(i, "days").toDate(),
-              "yyyy-MM-dd",
-            )
-          ) {
-            const newNotification = `Your subscription plan will expire in ${i} days. Please renew your subscription plan to continue using our services.`;
-
-            await createNotification(
-              "Subscription Plan Expiry",
-              newNotification,
-              subscription.userId,
-            );
-
-            await createAuditLog({
-              user: JSON.stringify(subscription),
-              action: "NEW NOTIFICATION",
-              newData: JSON.stringify({
-                title: "Subscription Plan Expiry",
-                message: newNotification,
-                receiverId: subscription.userId,
-                senderId: null,
-              }),
-              section: "NOTIFICATION",
-            });
-
-            sendSingleMail({
-              from: MAIL_CONFIG.sender,
-              to:
-                users?.find((user: User) => user.id === subscription.userId)
-                  ?.emailAddress || "",
-              context: {
-                title: "Subscription Plan Expiry",
-                name:
-                  users?.find((user: User) => user.id === subscription.userId)
-                    ?.firstName || "",
-                message: `Your subscription plan will expire in ${i} days. Please renew your subscription plan to continue using our services.`,
-              },
-              subject: `Subscription Plan Expiry`,
-              template: "userNotification.views",
-            });
-          }
-        }
-      }
+  for (const subscription of subscriptionPlans) {
+    if (!subscription?.id || !subscription?.endDate || !subscription?.userId) {
+      continue;
     }
-  });
+
+    if (freePlan?.id === subscription.planId || subscription.autoRenew) {
+      continue;
+    }
+
+    for (let daysLeft = 5; daysLeft > 0; daysLeft--) {
+      const notifyDate = format(
+        moment(subscription.endDate).subtract(daysLeft, "days").toDate(),
+        "yyyy-MM-dd",
+      );
+
+      if (format(new Date(), "yyyy-MM-dd") < notifyDate) continue;
+
+      const message = `Your subscription plan will expire in ${daysLeft} days. Please renew your subscription plan to continue using our services.`;
+
+      await createNotification(
+        "Subscription Plan Expiry",
+        message,
+        subscription.userId,
+      );
+    }
+  }
 };
+
+export const subtractSubscriptionCredits = async (
+  userId: string,
+  subscriptionId: string,
+  credits: number,
+) => adjustSubscriptionCredits(userId, subscriptionId, -credits);
+
+export const addSubscriptionCredits = async (
+  userId: string,
+  subscriptionId: string,
+  credits: number,
+) => adjustSubscriptionCredits(userId, subscriptionId, credits);
+
+export const oneMonthFromNow = () => moment().add(1, "month").toDate();
+
+export const adjustSubscriptionCredits = async (
+  userId: string,
+  subscriptionId: string,
+  delta: number,
+) => {
+  const subscription = await SubscriptionPlan.findOne({
+    where: { id: subscriptionId, userId, status: SUBSCRIPTION.ACTIVE },
+    raw: true,
+  });
+
+  if (!subscription?.id || subscription?.creditsBalance == null) return false;
+
+  await SubscriptionPlan.update(
+    { creditsBalance: subscription.creditsBalance + delta },
+    { where: { id: subscription.id } },
+  );
+
+  return true;
+};
+
+export const isExpired = (endDate: Date) =>
+  format(new Date(), "yyyy-MM-dd") >= format(endDate, "yyyy-MM-dd");

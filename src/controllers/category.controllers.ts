@@ -1,5 +1,5 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 import {
   createNewCategory,
   fetchActiveCategories,
@@ -11,13 +11,13 @@ import {
   updateCategoryStatus,
   updateCurrentCategory,
 } from "../services/category.services";
-import { ResponseError } from "../interfaces";
 import { CATEGORY } from "../utils/constant";
 import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { deleteFile } from "../utils/file";
+import { toSlug } from "../utils/formatter";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -33,7 +33,7 @@ export const getCategories: RequestHandler = async (
 
     const categories = await fetchActiveCategories(keyword as string);
 
-    response.status(201).json({
+    response.status(200).json({
       data: categories,
     });
   } catch (err) {
@@ -52,7 +52,13 @@ export const getCategoryBySlug: RequestHandler = async (
 
     const category = await findCategoryBySlug(slug);
 
-    response.status(201).json({
+    if (!category) {
+      return next(
+        makeError("Category not found. Please try again later.", 404),
+      );
+    }
+
+    response.status(200).json({
       data: category,
     });
   } catch (err) {
@@ -69,7 +75,7 @@ export const getPopularCategories: RequestHandler = async (
   try {
     const popularCategories = await fetchPopularCategories();
 
-    response.status(201).json({
+    response.status(200).json({
       data: popularCategories,
     });
   } catch (err) {
@@ -89,14 +95,12 @@ export const getCategory: RequestHandler = async (
     const category = await findCategoryById(id);
 
     if (!category) {
-      const error = new Error(
-        "Category not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("Category not found. Please try again later.", 404),
+      );
     }
 
-    response.status(201).json({
+    response.status(200).json({
       data: category,
     });
   } catch (err) {
@@ -118,7 +122,7 @@ export const getAllCategories: RequestHandler = async (
       status as string,
     );
 
-    response.status(201).json({
+    response.status(200).json({
       data: category,
     });
   } catch (err) {
@@ -134,63 +138,44 @@ export const reviewAdminCategories: RequestHandler = async (
 ) => {
   try {
     const { id, status } = request.body;
-    const userId = (request as CustomRequest).user?.id;
-
-    const category = await findCategoryById(id);
-
-    if (!category) {
-      const error = new Error(
-        "Category not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
 
     if (status !== CATEGORY.ACTIVATE && status !== CATEGORY.SUSPEND) {
-      const error = new Error(
-        "Invalid status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(makeError("Invalid status. Please try again later.", 400));
     }
 
-    if (status === CATEGORY.PENDING) {
-      const error = new Error(
-        "Category is in PENDING status. You cannot review a pending category.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    if (category.status === status) {
-      const error = new Error(
-        "Category is already in the selected status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    const category = await findCategoryById(id);
+    if (!category) {
+      return next(
+        makeError("Category not found. Please try again later.", 404),
+      );
     }
 
     const newStatus =
       status === CATEGORY.ACTIVATE ? CATEGORY.ACTIVE : CATEGORY.SUSPENDED;
 
+    if (category.status === newStatus) {
+      return next(
+        makeError(
+          "Category is already in the selected status. Please try again later.",
+          400,
+        ),
+      );
+    }
+
     await updateCategoryStatus(id, newStatus);
 
-    const targetUser = await findUserById(userId);
+    const reviewerId = (request as CustomRequest).user?.id;
+    const reviewer = await findUserById(reviewerId);
 
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(reviewer),
       action: "REVIEW CATEGORY",
       oldData: JSON.stringify(category),
-      newData: JSON.stringify({
-        ...category,
-        status: newStatus,
-      }),
+      newData: JSON.stringify({ ...category, status: newStatus }),
       section: "CATEGORY",
     });
 
-    response.status(201).json({
-      message: "Category reviewed successfully.",
-    });
+    response.status(200).json({ message: "Category reviewed successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -204,49 +189,41 @@ export const createCategory: RequestHandler = async (
 ) => {
   try {
     const { title, description } = request.body;
-    const userId = (request as CustomRequest).user?.id;
-    const file = request.file;
+    const creatorId = (request as CustomRequest).user?.id;
+    const slug = toSlug(title);
 
-    const existingCategory = await findCategoryByTitle(title);
+    const [creator, existingByTitle, existingBySlug] = await Promise.all([
+      findUserById(creatorId),
+      findCategoryByTitle(title),
+      findCategoryBySlug(slug),
+    ]);
 
-    if (existingCategory) {
-      const error = new Error("Category already exists.") as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingByTitle) {
+      return next(makeError("Category already exists.", 400));
     }
 
-    const slug = title.toLowerCase().replace(/\s+/g, "-");
-
-    const existingCategoryBySlug = await findCategoryBySlug(slug);
-
-    if (existingCategoryBySlug) {
-      const error = new Error(
-        `Category with this slug ${slug} already exists.`,
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingBySlug) {
+      return next(
+        makeError(`Category with slug "${slug}" already exists.`, 400),
+      );
     }
 
     const category = await createNewCategory({
       title,
       slug,
       description,
-      userId,
-      image: file?.filename || null,
+      userId: creator?.id ?? "",
+      image: request.file?.filename ?? null,
     });
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(creator),
       action: "CREATE CATEGORY",
       newData: JSON.stringify(category),
       section: "CATEGORY",
     });
 
-    response.status(201).json({
-      message: "Category created successfully.",
-    });
+    response.status(201).json({ message: "Category created successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -261,67 +238,56 @@ export const updateCategory: RequestHandler = async (
   try {
     const { id } = request.params;
     const { title, description } = request.body;
-    const file = request.file;
-    const userId = (request as CustomRequest).user?.id;
+    const updaterId = (request as CustomRequest).user?.id;
+    const slug = toSlug(title);
 
-    const category = await findCategoryById(id);
+    const [category, existingBySlug, existingByTitle, updater] =
+      await Promise.all([
+        findCategoryById(id),
+        findCategoryBySlug(slug),
+        findCategoryByTitle(title),
+        findUserById(updaterId),
+      ]);
 
     if (!category) {
-      const error = new Error(
-        "Category not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("Category not found. Please try again later.", 404),
+      );
     }
 
-    let slug = title.toLowerCase().replace(/\s+/g, "-");
-
-    const existingCategoryBySlug = await findCategoryBySlug(slug);
-
-    if (existingCategoryBySlug && existingCategoryBySlug.id !== id) {
-      const error = new Error(
-        `Category with this slug ${slug} already exists.`,
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingBySlug && existingBySlug.id !== id) {
+      return next(
+        makeError(`Category with slug "${slug}" already exists.`, 400),
+      );
     }
 
-    const existingCategoryByName = await findCategoryByTitle(title);
-
-    if (existingCategoryByName && existingCategoryByName.id !== id) {
-      const error = new Error(
-        `Category with this name ${title} already exists.`,
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingByTitle && existingByTitle.id !== id) {
+      return next(
+        makeError(`Category with name "${title}" already exists.`, 400),
+      );
     }
 
-    if (file?.filename && category?.image) {
+    if (request.file?.filename && category.image) {
       await deleteFile(category.image);
     }
 
     const updatedCategory = await updateCurrentCategory({
       id,
       title,
-      slug,
       description,
-      userId,
-      image: file?.filename || category?.image || null,
+      userId: updater?.id ?? "",
+      image: request.file?.filename ?? category.image ?? null,
     });
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(updater),
       action: "UPDATE CATEGORY",
       oldData: JSON.stringify(category),
       newData: JSON.stringify(updatedCategory),
       section: "CATEGORY",
     });
 
-    response.status(201).json({
-      message: "Category updated successfully.",
-    });
+    response.status(200).json({ message: "Category updated successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);

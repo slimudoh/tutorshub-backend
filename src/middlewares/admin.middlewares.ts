@@ -2,13 +2,12 @@ import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { ROLES } from "../utils/constant";
 import { Users } from "../interfaces/user";
-import { ResponseError } from "../interfaces";
 import {
   checkUserAccountStatus,
   checkUserEmailVerificationStatus,
   findUserById,
 } from "../services/user.services";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -18,48 +17,39 @@ const isAdmin: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
-): Promise<any> => {
+): Promise<void> => {
   try {
     const user = (request as CustomRequest).user;
 
     if (!user?.id) {
-      const error = new Error("You are not logged in.") as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+      return next(makeError("You are not logged in.", 401));
     }
 
     const authUser = await findUserById(user.id, false);
 
-    if (!authUser?.role) {
-      const error = new Error(
-        "You are not authorized to view this page.",
-      ) as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+    if (!authUser) {
+      return next(makeError("You are not logged in.", 401));
     }
 
     if (authUser.role !== ROLES.ADMIN && authUser.role !== ROLES.SUPER_ADMIN) {
-      const error = new Error(
-        "You are not authorized to view this page.",
-      ) as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+      return next(makeError("You are not authorized to view this page.", 403));
     }
 
     const accountStatus = await checkUserAccountStatus(authUser.status);
     if (accountStatus.status !== 200) {
-      const error = new Error(accountStatus.message) as ResponseError;
-      error.statusCode = accountStatus.status;
-      return next(error);
+      return next(makeError(accountStatus.message, accountStatus.status));
     }
 
     const emailVerificationStatus = await checkUserEmailVerificationStatus(
       authUser.emailVerified,
     );
     if (emailVerificationStatus.status !== 200) {
-      const error = new Error(emailVerificationStatus.message) as ResponseError;
-      error.statusCode = emailVerificationStatus.status;
-      return next(error);
+      return next(
+        makeError(
+          emailVerificationStatus.message,
+          emailVerificationStatus.status,
+        ),
+      );
     }
 
     next();

@@ -7,9 +7,8 @@ import {
   updateProfile,
   removeAvatar,
   updateAvatar,
-  getUserAvatar,
+  getImage,
   deleteUsers,
-  getHomeInstructors,
   getCurrency,
 } from "../controllers/user.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
@@ -75,9 +74,7 @@ router.patch(
   reviewUsers,
 );
 
-router.get("/home-instructors", getHomeInstructors);
-
-router.get("/file/:name", getUserAvatar);
+router.get("/file/:name", getImage);
 
 router.get("/:id", isAuth, isAdmin, getUser);
 

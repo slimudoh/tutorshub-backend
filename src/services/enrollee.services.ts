@@ -1,6 +1,12 @@
 import { Op } from "sequelize";
-import { ENROLLEE_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import {
+  ENROLLEE_EXCLUDED_ATTRIBUTES,
+  LESSON_EXCLUDED_ATTRIBUTES,
+} from "../utils/constant";
 import LessonEnrollment from "../models/lessonEnrollment.models";
+import Lesson from "../models/lesson.models";
+import { getLessonsDependencies } from "./lesson.services";
+import User from "../models/user.models";
 
 export const getAdminEnrollees = async (
   keyword?: string,
@@ -25,21 +31,36 @@ export const getAdminEnrollees = async (
   }
 
   if (!offsetSize && !newPageSize) {
-    return await LessonEnrollment.count({ where: { ...where } });
+    return await Lesson.count({ where: { ...where } });
   }
 
-  return await LessonEnrollment.findAll({
+  const lessons = await Lesson.findAll({
     where: { ...where },
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: ENROLLEE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
+
+  const enrollments = await LessonEnrollment.findAll({
+    where: {
+      lessonId: { [Op.in]: lessons.map((lesson) => lesson.id) },
+    },
+    raw: true,
+  });
+
+  lessons.forEach((lesson) => {
+    lesson.enrollees = enrollments.filter(
+      (e) => e.lessonId === lesson.id,
+    ).length;
+  });
+
+  return getLessonsDependencies(lessons, null);
 };
 
 export const getEnrollees = async (
@@ -51,19 +72,62 @@ export const getEnrollees = async (
   let where = {};
 
   if (!offsetSize && !newPageSize) {
-    return await LessonEnrollment.count({ where: { ...where, userId } });
+    return await Lesson.count({ where: { ...where, userId } });
   }
 
-  return await LessonEnrollment.findAll({
-    where: { ...where },
+  const lessons = await Lesson.findAll({
+    where: { ...where, userId },
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
-        exclude: ENROLLEE_EXCLUDED_ATTRIBUTES,
+        exclude: LESSON_EXCLUDED_ATTRIBUTES,
       },
     }),
     raw: true,
   });
+
+  const enrollments = await LessonEnrollment.findAll({
+    where: {
+      lessonId: { [Op.in]: lessons.map((lesson) => lesson.id) },
+    },
+    raw: true,
+  });
+
+  lessons.forEach((lesson) => {
+    lesson.enrollees = enrollments.filter(
+      (e) => e.lessonId === lesson.id,
+    ).length;
+  });
+
+  return getLessonsDependencies(lessons, null);
+};
+
+export const fetchLessonEnrollees = async (
+  lessonId: string,
+  excludeAttributes = true,
+) => {
+  const enrollees = await LessonEnrollment.findAll({
+    where: { lessonId },
+    order: [["createdAt", "DESC"]],
+    ...(excludeAttributes && {
+      attributes: { exclude: ENROLLEE_EXCLUDED_ATTRIBUTES },
+    }),
+    raw: true,
+  });
+
+  if (!enrollees.length) return [];
+
+  const users = await User.findAll({
+    where: { id: { [Op.in]: enrollees.map((e) => e.userId) } },
+    attributes: ["id", "firstName", "lastName", "country"],
+    raw: true,
+  });
+
+  enrollees.forEach((enrollee) => {
+    enrollee.user = users.find((u) => u.id === enrollee.userId) ?? null;
+  });
+
+  return enrollees;
 };

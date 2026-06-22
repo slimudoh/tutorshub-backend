@@ -11,24 +11,11 @@ class WishList extends Model {
 
 WishList.init(
   {
-    id: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      primaryKey: true,
-    },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
-    lessonId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
+    id: { type: DataTypes.UUID, allowNull: false, primaryKey: true },
+    userId: { type: DataTypes.UUID, allowNull: true },
+    lessonId: { type: DataTypes.UUID, allowNull: true },
   },
-  {
-    tableName: "wishlists",
-    sequelize,
-  },
+  { tableName: "wishlists", sequelize },
 );
 
 export default WishList;

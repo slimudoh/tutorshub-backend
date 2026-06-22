@@ -1,7 +1,6 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
-import { ResponseError } from "../interfaces";
 import {
   deleteUser,
   findUserById,
@@ -11,9 +10,8 @@ import {
   updateUserProfile,
   updateUserStatus,
   verifyUserPassword,
-  fetchHomeInstructors,
 } from "../services/user.services";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { ROLES, SUBSCRIPTION, USER } from "../utils/constant";
 import path from "path";
@@ -26,8 +24,11 @@ import {
   getUserCurrency,
 } from "../services/currency.services";
 import { deleteFile } from "../utils/file";
-import { findInstructorByUserId } from "../services/instructor.services";
-import Instructor from "../models/instructor.models";
+import {
+  findInstructorByUserId,
+  updateInstructorNames,
+} from "../services/instructor.services";
+import { paginationHelper } from "../utils/formatter";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -40,27 +41,21 @@ export const getUsers: RequestHandler = async (
 ) => {
   try {
     const { keyword, pageNumber, pageSize, status } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
-
-    const users = await getAllUsers(
-      keyword as string,
-      status as string,
-      offsetSize,
-      newPageSize,
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await getAllUsers(keyword as string, status as string);
+    const [users, totalRecords] = await Promise.all([
+      getAllUsers(keyword as string, status as string, offsetSize, newPageSize),
+      getAllUsers(keyword as string, status as string) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: users,
     });
   } catch (err) {
@@ -77,31 +72,55 @@ export const getUser: RequestHandler = async (
   try {
     const userId = request.params.id;
     const user = await findUserById(userId);
-    const userCurrency = await getUserCurrency(request);
 
-    if (user) {
-      user.deactivationDetails = await getDeletedUser(userId);
-      const subscriptionPlans = await findUsersSubscriptionPlans(userId);
-
-      const subscriptionPlan = subscriptionPlans.find(
-        (plan) => plan.status === SUBSCRIPTION.ACTIVE,
-      );
-
-      if (subscriptionPlan?.planId) {
-        let pricingPlan = await findPricingPlanById(subscriptionPlan.planId);
-
-        pricingPlan = await convertSingleCurrency(
-          pricingPlan,
-          userCurrency || "USD",
-        );
-
-        subscriptionPlan.plan = pricingPlan;
-      }
-
-      user.subscriptionPlan = subscriptionPlan ?? null;
+    if (!user) {
+      return next(makeError("User not found.", 404));
     }
 
-    response.status(201).json({
+    const [userCurrency, subscriptionPlans, deactivationDetails] =
+      await Promise.all([
+        getUserCurrency(request),
+        findUsersSubscriptionPlans(userId),
+        getDeletedUser(userId),
+      ]);
+
+    user.deactivationDetails = deactivationDetails;
+
+    const activeSubscription = subscriptionPlans.find(
+      (plan) => plan.status === SUBSCRIPTION.ACTIVE,
+    );
+
+    if (activeSubscription?.planId) {
+      let pricingPlan = await findPricingPlanById(activeSubscription.planId);
+      const { amount, currency } = await convertSingleCurrency(
+        {
+          amount: pricingPlan?.amount,
+          currency: pricingPlan?.currency,
+        },
+        userCurrency,
+      );
+      const { amount: amountPerSession } = await convertSingleCurrency(
+        {
+          amount: pricingPlan?.amountPerSession,
+          currency: pricingPlan?.currency,
+        },
+        userCurrency,
+      );
+
+      if (pricingPlan) {
+        pricingPlan.amount = amount;
+        pricingPlan.amountPerSession = amountPerSession;
+        pricingPlan.currency = currency;
+      }
+
+      activeSubscription.plan = pricingPlan;
+    }
+
+    user.subscriptionPlan = activeSubscription ?? null;
+
+    response.status(200).json({ data: user });
+
+    response.status(200).json({
       data: user,
     });
   } catch (err) {
@@ -118,23 +137,19 @@ export const getProfile: RequestHandler = async (
   try {
     const userId = (request as CustomRequest).user?.id;
 
-    const userProfile = await findUserById(userId);
+    const [userProfile, userCurrency, instructor] = await Promise.all([
+      findUserById(userId),
+      getUserCurrency(request),
+      findInstructorByUserId(userId),
+    ]);
 
     if (!userProfile) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
-    const userCurrency = await getUserCurrency(request);
-    const learner = getUserProfile(userProfile);
-    const instructor = await findInstructorByUserId(userId);
-
-    response.status(201).json({
+    response.status(200).json({
       data: {
-        learner,
+        learner: getUserProfile(userProfile),
         currency: userCurrency,
         instructor,
       },
@@ -153,7 +168,7 @@ export const getCurrency: RequestHandler = async (
   try {
     const userCurrency = await getUserCurrency(request);
 
-    response.status(201).json({
+    response.status(200).json({
       data: userCurrency,
     });
   } catch (err) {
@@ -170,52 +185,38 @@ export const reviewUsers: RequestHandler = async (
   try {
     const { id, status } = request.body;
 
+    if (status !== USER.ACTIVATE && status !== USER.SUSPEND) {
+      return next(makeError("Invalid status. Please try again later.", 400));
+    }
+
     const targetUser = await findUserById(id);
 
     if (!targetUser) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
     if (
       targetUser.role === ROLES.ADMIN ||
       targetUser.role === ROLES.SUPER_ADMIN
     ) {
-      const error = new Error(
-        "You cannot review an admin user. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    if (status !== USER.ACTIVATE && status !== USER.SUSPEND) {
-      const error = new Error(
-        "Invalid status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    if (status === USER.PENDING) {
-      const error = new Error(
-        "User is in PENDING status. You cannot review a pending user.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    if (targetUser.status === status) {
-      const error = new Error(
-        "User is already in the selected status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "You cannot review an admin user. Please try again later.",
+          400,
+        ),
+      );
     }
 
     const newStatus = status === USER.ACTIVATE ? USER.ACTIVE : USER.SUSPENDED;
+
+    if (targetUser.status === newStatus) {
+      return next(
+        makeError(
+          "User is already in the selected status. Please try again later.",
+          400,
+        ),
+      );
+    }
 
     await updateUserStatus(id, newStatus);
 
@@ -223,16 +224,11 @@ export const reviewUsers: RequestHandler = async (
       user: JSON.stringify(targetUser),
       action: "REVIEW USER",
       oldData: JSON.stringify(targetUser),
-      newData: JSON.stringify({
-        ...targetUser,
-        status: newStatus,
-      }),
+      newData: JSON.stringify({ ...targetUser, status: newStatus }),
       section: "USER",
     });
 
-    response.status(201).json({
-      message: "User reviewed successfully.",
-    });
+    response.status(200).json({ message: "User reviewed successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -246,56 +242,36 @@ export const removeAvatar: RequestHandler = async (
 ) => {
   try {
     const user = (request as CustomRequest).user;
-
     const targetUser = await findUserById(user.id);
 
     if (!targetUser) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
     if (!targetUser.avatar) {
-      const error = new Error(
-        "User avatar not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("User avatar not found. Please try again later.", 404),
+      );
     }
 
     await deleteFile(targetUser.avatar);
+    await updateUserProfile(user.id, { avatar: null });
 
-    await updateUserProfile(user.id, {
-      avatar: null,
-    });
-
-    const userProfile = await findUserById(user.id);
+    const updatedSnapshot = { ...targetUser, avatar: null };
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
       action: "REMOVE AVATAR",
       oldData: JSON.stringify(targetUser),
-      newData: JSON.stringify(userProfile),
+      newData: JSON.stringify(updatedSnapshot),
       section: "USER",
     });
 
-    if (!userProfile) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
+    const profile = getUserProfile(updatedSnapshot as typeof targetUser);
 
-    const profile = getUserProfile(userProfile);
-
-    response.status(201).json({
+    response.status(200).json({
       message: "User avatar removed successfully.",
-      data: {
-        ...profile,
-      },
+      data: { ...profile },
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -326,14 +302,10 @@ export const updateProfile: RequestHandler = async (
     const targetUser = await findUserById(user.id);
 
     if (!targetUser) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
-    await updateUserProfile(user.id, {
+    const profileUpdates = {
       firstName,
       lastName,
       phoneCode,
@@ -343,33 +315,36 @@ export const updateProfile: RequestHandler = async (
       dateOfBirth,
       address,
       country,
-    });
+    };
 
-    const userProfile = await findUserById(user.id);
+    await updateUserProfile(user.id, profileUpdates);
+
+    const instructor = await findInstructorByUserId(user.id);
+
+    if (instructor) {
+      await updateInstructorNames(user.id, firstName, lastName);
+      await createAuditLog({
+        user: JSON.stringify(targetUser),
+        action: "UPDATE INSTRUCTOR PROFILE",
+        oldData: JSON.stringify(instructor),
+        newData: JSON.stringify({ ...instructor, firstName, lastName }),
+        section: "INSTRUCTOR",
+      });
+    }
+
+    const updatedSnapshot = { ...targetUser, ...profileUpdates };
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
       action: "UPDATE PROFILE",
       oldData: JSON.stringify(targetUser),
-      newData: JSON.stringify(userProfile),
+      newData: JSON.stringify(updatedSnapshot),
       section: "USER",
     });
 
-    if (!userProfile) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    const learner = getUserProfile(userProfile);
-
-    response.status(201).json({
+    response.status(200).json({
       message: "User profile updated successfully.",
-      data: {
-        learner,
-      },
+      data: { learner: getUserProfile(updatedSnapshot as typeof targetUser) },
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -385,59 +360,37 @@ export const updateAvatar: RequestHandler = async (
   try {
     const user = (request as CustomRequest).user;
 
-    const targetUser = await findUserById(user.id);
-
-    if (!targetUser) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+    const file = request.file;
+    if (!file) {
+      return next(makeError("File is required. Please try again later.", 400));
     }
 
-    if (targetUser?.avatar) {
+    const targetUser = await findUserById(user.id);
+    if (!targetUser) {
+      return next(makeError("User not found. Please try again later.", 404));
+    }
+
+    if (targetUser.avatar) {
       await deleteFile(targetUser.avatar);
     }
 
-    const file = request.file;
+    await updateUserProfile(user.id, { avatar: file.filename });
 
-    if (!file) {
-      const error = new Error(
-        "File is required. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    await updateUserProfile(user.id, {
-      avatar: file.filename,
-    });
-
-    const userProfile = await findUserById(user.id);
+    const updatedSnapshot = { ...targetUser, avatar: file.filename };
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
       action: "UPDATE AVATAR",
       oldData: JSON.stringify(targetUser),
-      newData: JSON.stringify(userProfile),
+      newData: JSON.stringify(updatedSnapshot),
       section: "USER",
     });
 
-    if (!userProfile) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
+    const profile = getUserProfile(updatedSnapshot as typeof targetUser);
 
-    const profile = getUserProfile(userProfile);
-
-    response.status(201).json({
+    response.status(200).json({
       message: "User avatar updated successfully.",
-      data: {
-        ...profile,
-      },
+      data: { ...profile },
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -445,7 +398,7 @@ export const updateAvatar: RequestHandler = async (
   }
 };
 
-export const getUserAvatar: RequestHandler = async (
+export const getImage: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
@@ -471,74 +424,37 @@ export const deleteUsers: RequestHandler = async (
     const targetUser = await findUserById(userId, false);
 
     if (!targetUser?.password) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
     const isPasswordValid = await verifyUserPassword(
       password,
       targetUser.password,
     );
-
     if (!isPasswordValid) {
-      const error = new Error(
-        "Invalid password. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+      return next(makeError("Invalid password. Please try again later.", 401));
     }
 
     await deleteUser(userId, reason, description);
-
-    const userProfile = await findUserById(userId);
 
     await createAuditLog({
       user: JSON.stringify(targetUser),
       action: "DELETE USER",
       oldData: JSON.stringify(targetUser),
       newData: JSON.stringify({
-        ...userProfile,
+        ...targetUser,
         reason,
         description,
+        deleted: true,
       }),
       section: "USER",
     });
 
-    if (!userProfile) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
+    const profile = getUserProfile(targetUser);
 
-    const profile = getUserProfile(userProfile);
-
-    response.status(201).json({
-      message: "User deleted successfully.",
-      data: {
-        ...profile,
-      },
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const getHomeInstructors: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const users = await fetchHomeInstructors();
-
-    response.status(201).json({
-      data: users,
+    response.status(200).json({
+      message: "Your account has been deleted successfully.",
+      data: { ...profile },
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

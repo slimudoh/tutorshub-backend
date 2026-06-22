@@ -1,12 +1,19 @@
 import { Op } from "sequelize";
 import Transaction from "../models/transaction.models";
-import { TRANSACTION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import {
+  TRANSACTION_EXCLUDED_ATTRIBUTES,
+  USER_EXCLUDED_ATTRIBUTES,
+} from "../utils/constant";
+import crypto from "crypto";
+import User from "../models/user.models";
+import { convertMultipleCurrencies } from "./currency.services";
 
 export const getTransactions = async (
   keyword?: string,
   status?: string,
   offsetSize?: number,
   newPageSize?: number,
+  userCurrency?: string,
   excludeAttributes = true,
 ) => {
   let where = {};
@@ -15,7 +22,6 @@ export const getTransactions = async (
     where = {
       [Op.or]: [
         { currency: { [Op.like]: `%${keyword}%` } },
-        { amount: { [Op.like]: `%${keyword}%` } },
         { reference: { [Op.like]: `%${keyword}%` } },
         { channel: { [Op.like]: `%${keyword}%` } },
       ],
@@ -33,18 +39,24 @@ export const getTransactions = async (
     return await Transaction.count({ where });
   }
 
-  return await Transaction.findAll({
+  let transactions = await Transaction.findAll({
     where,
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
-      attributes: {
-        exclude: TRANSACTION_EXCLUDED_ATTRIBUTES,
-      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: { exclude: USER_EXCLUDED_ATTRIBUTES },
+        },
+      ],
     }),
     raw: true,
   });
+
+  return await convertMultipleCurrencies(transactions, userCurrency || "");
 };
 
 export const getUserTransactions = async (
@@ -54,7 +66,7 @@ export const getUserTransactions = async (
   status?: string,
   offsetSize?: number,
   newPageSize?: number,
-  excludeAttributes = true,
+  userCurrency?: string,
 ) => {
   let where = {};
 
@@ -62,7 +74,6 @@ export const getUserTransactions = async (
     where = {
       [Op.or]: [
         { currency: { [Op.like]: `%${keyword}%` } },
-        { amount: { [Op.like]: `%${keyword}%` } },
         { reference: { [Op.like]: `%${keyword}%` } },
         { channel: { [Op.like]: `%${keyword}%` } },
       ],
@@ -80,22 +91,27 @@ export const getUserTransactions = async (
     return await Transaction.count({ where });
   }
 
-  return await Transaction.findAll({
+  let transactions = await Transaction.findAll({
     where: {
       ...where,
       transactionType,
       userId,
     },
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
-    ...(excludeAttributes && {
-      attributes: {
-        exclude: TRANSACTION_EXCLUDED_ATTRIBUTES,
-      },
-    }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
+    attributes: {
+      exclude: TRANSACTION_EXCLUDED_ATTRIBUTES,
+    },
     raw: true,
   });
+
+  transactions = await convertMultipleCurrencies(
+    transactions,
+    userCurrency || "",
+  );
+
+  return transactions;
 };
 
 export const getTransactionById = async (
@@ -117,4 +133,46 @@ export const getTransactionById = async (
     }),
     raw: true,
   });
+};
+
+export const getTransactionByReference = async (
+  reference: string,
+  excludeAttributes = true,
+) => {
+  return await Transaction.findOne({
+    where: {
+      reference,
+    },
+    ...(excludeAttributes && {
+      attributes: {
+        exclude: TRANSACTION_EXCLUDED_ATTRIBUTES,
+      },
+    }),
+    raw: true,
+  });
+};
+
+export const createTransaction = async (transactionData: {
+  userId: string;
+  transactionType: string;
+  reference: string;
+  currency: string;
+  amount: number;
+  channel: string;
+  status: string;
+  purpose: string;
+}) => {
+  const transaction = await Transaction.create({
+    id: crypto.randomUUID(),
+    userId: transactionData.userId,
+    transactionType: transactionData.transactionType,
+    reference: transactionData.reference,
+    amount: transactionData.amount,
+    currency: transactionData.currency,
+    channel: transactionData.channel,
+    status: transactionData.status,
+    purpose: transactionData.purpose,
+  });
+
+  return transaction;
 };

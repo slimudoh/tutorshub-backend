@@ -2,7 +2,12 @@ import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
-import { getAdminEnrollees, getEnrollees } from "../services/enrollee.services";
+import {
+  getAdminEnrollees,
+  getEnrollees,
+  fetchLessonEnrollees,
+} from "../services/enrollee.services";
+import { paginationHelper } from "../utils/formatter";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -15,30 +20,26 @@ export const getAllEnrollees: RequestHandler = async (
 ) => {
   try {
     const { keyword, pageNumber, pageSize, status } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
-
-    const enrollees = await getAdminEnrollees(
-      keyword as string,
-      status as string,
-      offsetSize,
-      newPageSize,
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await getAdminEnrollees(
-      keyword as string,
-      status as string,
-    );
+    const [enrollees, totalRecords] = await Promise.all([
+      getAdminEnrollees(
+        keyword as string,
+        status as string,
+        offsetSize,
+        newPageSize,
+      ),
+      getAdminEnrollees(keyword as string, status as string) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: enrollees,
     });
   } catch (err) {
@@ -54,24 +55,42 @@ export const getUserEnrollees: RequestHandler = async (
 ) => {
   try {
     const { pageNumber, pageSize } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
+    );
 
     const userId = (request as CustomRequest).user.id;
 
-    const enrollees = await getEnrollees(userId, offsetSize, newPageSize);
+    const [enrollees, totalRecords] = await Promise.all([
+      getEnrollees(userId, offsetSize, newPageSize),
+      getEnrollees(userId) as Promise<number>,
+    ]);
 
-    const totalPages = await getEnrollees(userId);
-
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
+      data: enrollees,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getLessonEnrollees: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = request.params;
+
+    const enrollees = await fetchLessonEnrollees(id);
+
+    response.status(200).json({
       data: enrollees,
     });
   } catch (err) {

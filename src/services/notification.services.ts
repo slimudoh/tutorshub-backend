@@ -1,23 +1,7 @@
 import { NOTIFICATION_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import Notification from "../models/notification.models";
-import { getNotificationSettingsByUserId } from "./setting.services";
-
-//   newClass: boolean;
-//   classNotSubscribed: boolean;
-//   classSubscribed1Day: boolean;
-//   classSubscribed1Hour: boolean;
-//   classSubscribed30Minutes: boolean;
-//   classSubscribed15Minutes: boolean;
-//   classSubscribed5Minutes: boolean;
-//   classComplete: boolean;
-//   weeklySummary: boolean;
-//   monthlySummary: boolean;
-//   newReview: boolean;
-//   newBooking: boolean;
-//   bookingReminder: boolean;
-//   bookingCanceled: boolean;
-//   bookingCompleted: boolean;
-//   bookingRescheduled: boolean;
+import { Op } from "@sequelize/core";
+import { getAllActiveAdminUsers } from "./user.services";
 
 export const findNotificationById = async (
   id: string,
@@ -25,7 +9,7 @@ export const findNotificationById = async (
 ) => {
   return await Notification.findOne({
     where: {
-      id: id,
+      id,
     },
     ...(excludeAttributes && {
       attributes: {
@@ -54,8 +38,8 @@ export const getUserNotifications = async (
       isDeleted: false,
     },
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
         exclude: NOTIFICATION_EXCLUDED_ATTRIBUTES,
@@ -71,12 +55,6 @@ export const createNotification = async (
   receiverId: string,
   senderId: string | null = null,
 ) => {
-  const userSetting = await getNotificationSettingsByUserId(receiverId);
-
-  if (!userSetting?.pushNotification) {
-    return;
-  }
-
   return await Notification.create({
     id: crypto.randomUUID(),
     senderId,
@@ -88,23 +66,64 @@ export const createNotification = async (
   });
 };
 
+export const createBulkNotifications = async (
+  payload: {
+    title: string;
+    message: string;
+    receiverId: string;
+    senderId: string | null;
+  }[],
+) => {
+  return await Notification.bulkCreate(
+    payload.map((item) => ({
+      id: crypto.randomUUID(),
+      senderId: item.senderId,
+      receiverId: item.receiverId,
+      title: item.title,
+      message: item.message,
+      isDelivered: true,
+      deliveredAt: new Date(),
+    })),
+  );
+};
+
+export const createAdminNotifications = async (payload: {
+  title: string;
+  message: string;
+  senderId: string | null;
+}) => {
+  const adminUsers = await getAllActiveAdminUsers();
+
+  return await Notification.bulkCreate(
+    adminUsers.map((admin) => ({
+      id: crypto.randomUUID(),
+      senderId: payload.senderId,
+      receiverId: admin.id,
+      title: payload.title,
+      message: payload.message,
+      isDelivered: true,
+      deliveredAt: new Date(),
+    })),
+  );
+};
+
 export const readAllUserNotifications = async (
   userId: string,
-  offsetSize: number,
-  newPageSize: number,
+  offset: number,
+  limit: number,
 ) => {
+  const notifications = await Notification.findAll({
+    where: { receiverId: userId, isRead: false },
+    attributes: ["id"],
+    offset,
+    limit,
+    raw: true,
+  });
+
+  if (!notifications.length) return;
+
   return await Notification.update(
-    {
-      isRead: true,
-      readAt: new Date(),
-    },
-    {
-      where: {
-        receiverId: userId,
-        isRead: false,
-      },
-      ...(offsetSize && { offset: offsetSize }),
-      ...(newPageSize && { limit: newPageSize }),
-    },
+    { isRead: true, readAt: new Date() },
+    { where: { id: { [Op.in]: notifications.map((n) => n.id) } } },
   );
 };

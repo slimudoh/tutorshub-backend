@@ -28,7 +28,6 @@ export const createNewsletter = async (email: string) => {
 
 export const getAllSubscribers = async (
   keyword: string,
-  status: string,
   offsetSize?: number,
   newPageSize?: number,
 ) => {
@@ -40,13 +39,6 @@ export const getAllSubscribers = async (
     };
   }
 
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
-
   if (!offsetSize && !newPageSize) {
     return await Newsletter.count({ where });
   }
@@ -55,8 +47,8 @@ export const getAllSubscribers = async (
     where,
 
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     raw: true,
   });
 };

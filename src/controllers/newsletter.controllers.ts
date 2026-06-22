@@ -1,5 +1,5 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 import {
   createNewsletter,
   findNewsletterByEmail,
@@ -8,6 +8,7 @@ import {
   removeSubscriber,
 } from "../services/newsletter.services";
 import { createAuditLog } from "../services/auditLog.services";
+import { paginationHelper } from "../utils/formatter";
 
 export const submitNewsletter: RequestHandler = async (
   request: Request,
@@ -17,23 +18,21 @@ export const submitNewsletter: RequestHandler = async (
   try {
     const { email } = request.body;
 
-    const newsletterExists = await findNewsletterByEmail(email);
-
-    if (newsletterExists) {
-      return response.status(400).json({
-        message: "You are already subscribed to our newsletter.",
-      });
+    const existing = await findNewsletterByEmail(email);
+    if (existing) {
+      return next(
+        makeError("You are already subscribed to our newsletter.", 400),
+      );
     }
 
     const newsletter = await createNewsletter(email);
 
     await createAuditLog({
-      action: "NEWSLETTER",
+      action: "SUBSCRIBE",
       newData: JSON.stringify(newsletter),
       section: "NEWSLETTER",
     });
-
-    response.status(201).json({
+    response.status(200).json({
       message: ` Report logged successfully. `,
     });
   } catch (err) {
@@ -48,31 +47,22 @@ export const getSubscribers: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
-
-    const subscribers = await getAllSubscribers(
-      keyword as string,
-      status as string,
-      offsetSize,
-      newPageSize,
+    const { keyword, pageNumber, pageSize } = request.query;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await getAllSubscribers(
-      keyword as string,
-      status as string,
-    );
+    const [subscribers, totalRecords] = await Promise.all([
+      getAllSubscribers(keyword as string, offsetSize, newPageSize),
+      getAllSubscribers(keyword as string) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: subscribers,
     });
   } catch (err) {
@@ -90,22 +80,19 @@ export const deleteSubscriber: RequestHandler = async (
     const { id } = request.params;
 
     const subscriber = await findNewsletterById(id);
-
     if (!subscriber) {
-      return response.status(404).json({
-        message: "Subscriber not found.",
-      });
+      return next(makeError("Subscriber not found.", 404));
     }
 
     await removeSubscriber(id);
 
     await createAuditLog({
-      action: "NEWSLETTER",
-      newData: JSON.stringify(subscriber),
+      action: "DELETE SUBSCRIBER",
+      oldData: JSON.stringify(subscriber),
       section: "NEWSLETTER",
     });
 
-    response.status(201).json({
+    response.status(200).json({
       message: `Subscriber deleted successfully.`,
     });
   } catch (err) {

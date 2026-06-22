@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { ResponseError } from "../interfaces";
+import { makeError } from "../services/error.services";
 
-interface Error {
+interface AppError {
   statusCode?: number;
   message?: string;
 }
@@ -11,26 +11,30 @@ export const invalidRouteHandler = async (
   response: Response,
   next: NextFunction,
 ) => {
-  const error = new Error(
-    `Route ${request.baseUrl + request.path} not found. Please try again or contact support if the problem persists.`,
-  ) as ResponseError;
-  error.statusCode = 404;
-  next(error);
+  return next(
+    makeError(
+      `Route ${request.originalUrl} not found. Please try again or contact support if the problem persists.`,
+      404,
+    ),
+  );
 };
 
 export const errorHandler = (
-  error: Error,
+  error: AppError,
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
-  console.log({ error });
+  console.error({ error });
 
-  let newError = error?.message;
+  if (response.headersSent) {
+    return next(error);
+  }
 
   const statusCode = error?.statusCode ?? 500;
-  const message =
-    newError ??
+  const errorMessage =
+    error?.message ??
     "We are currently experiencing some issues. Please try again or contact support if the problem persists.";
-  response.status(statusCode).json({ message });
+
+  response.status(statusCode).json({ message: errorMessage });
 };

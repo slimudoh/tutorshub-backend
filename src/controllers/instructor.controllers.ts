@@ -1,29 +1,48 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 import { findUserById, updateUserRole } from "../services/user.services";
-import { ResponseError } from "../interfaces";
-import { INSTRUCTOR, ROLES } from "../utils/constant";
+import { INSTRUCTOR, ROLES, SUBSCRIPTION } from "../utils/constant";
 import {
   createNewInstructor,
   findInstructorByUserId,
   getAllInstructors,
-  getInstructorById,
+  getInstructorByUserId,
   updateInstructorStatus,
   updateInstructorProfile,
+  fetchActiveInstructors,
+  getInstructorById,
+  fetchHomeInstructors,
 } from "../services/instructor.services";
-import { createAuditLog } from "../services/auditLog.services";
+import {
+  createAuditLog,
+  createBulkAuditLogs,
+} from "../services/auditLog.services";
 import {
   sendAdminEmailMessages,
   sendUserEmailNotification,
 } from "../services/email.services";
 import { createNotification } from "../services/notification.services";
-import { removeUnderscoreFromString } from "../utils/formatter";
+import {
+  paginationHelper,
+  removeUnderscoreFromString,
+} from "../utils/formatter";
+import {
+  findFreePlan,
+  findUsersSubscriptionPlans,
+} from "../services/pricing.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
 }
+
+const VALID_INSTRUCTOR_REVIEW_STATUSES = new Set([
+  INSTRUCTOR.APPROVED,
+  INSTRUCTOR.SUSPENDED,
+  INSTRUCTOR.DEACTIVATED,
+  INSTRUCTOR.REJECTED,
+]);
 
 export const addInstructor: RequestHandler = async (
   request: Request,
@@ -31,92 +50,122 @@ export const addInstructor: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { bio, languages, skills } = request.body;
-
+    const { bio, languages, skills, experience, links, profession } =
+      request.body;
     const userId = (request as CustomRequest).user?.id;
 
-    const user = await findUserById(userId);
+    const [subscriptionPlans, freePlan, instructor] = await Promise.all([
+      findUsersSubscriptionPlans(userId),
+      findFreePlan(),
+      findInstructorByUserId(userId),
+    ]);
 
-    if (user?.role !== ROLES.USER) {
-      const error = new Error(
-        "You are not authorized to perform this action",
-      ) as ResponseError;
-      error.statusCode = 403;
-      return next(error);
+    if (subscriptionPlans.length === 0) {
+      return next(
+        makeError(
+          "You need a subscription to become an instructor. Please subscribe to a plan and try again.",
+          400,
+        ),
+      );
     }
 
-    const instructor = await findInstructorByUserId(userId);
+    const userActiveSubscription = subscriptionPlans.find(
+      (plan) => plan.status === SUBSCRIPTION.ACTIVE,
+    );
+
+    if (!userActiveSubscription) {
+      return next(
+        makeError(
+          "You do not have an active subscription. Please subscribe to a plan and try again.",
+          400,
+        ),
+      );
+    }
+
+    if (freePlan?.id === userActiveSubscription.planId) {
+      return next(
+        makeError(
+          "You already have a free subscription. Please upgrade your subscription to become an instructor.",
+          400,
+        ),
+      );
+    }
 
     if (instructor?.status === INSTRUCTOR.PENDING) {
-      const error = new Error(
-        "Instructor application already exists and is pending review.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Instructor application already exists and is pending review.",
+          400,
+        ),
+      );
     }
 
     if (instructor?.status === INSTRUCTOR.APPROVED) {
-      const error = new Error(
-        "Instructor application already approved.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Instructor application already approved. Please logout and login again for the role to take effect.",
+          400,
+        ),
+      );
     }
 
     if (instructor?.status === INSTRUCTOR.SUSPENDED) {
-      const error = new Error(
-        "Instructor application has been suspended. Please contact the support team for more information.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Instructor application has been suspended. Please contact the support team for more information.",
+          400,
+        ),
+      );
     }
 
     if (instructor?.status === INSTRUCTOR.DEACTIVATED) {
-      const error = new Error(
-        "Instructor application has been deactivated. Please contact the support team for more information.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Instructor application has been deactivated. Please contact the support team for more information.",
+          400,
+        ),
+      );
+    }
+
+    const user = await findUserById(userId);
+    if (!user) {
+      return next(makeError("User not found. Please try again later.", 404));
     }
 
     const newInstructor = await createNewInstructor(
       userId,
+      user?.firstName || "",
+      user?.lastName || "",
       bio,
+      profession,
+      experience,
       languages,
       skills,
+      links,
       INSTRUCTOR.PENDING,
     );
 
-    await createAuditLog({
-      user: JSON.stringify(user),
-      action: "CREATE INSTRUCTOR",
-      oldData: JSON.stringify(instructor),
-      newData: JSON.stringify(newInstructor),
-      section: "INSTRUCTOR",
-    });
+    const notificationMessage =
+      "Thank you for applying to become an instructor on our platform. We have received your application and appreciate you taking the time to apply. Our team will review your application and get back to you as soon as possible.";
 
-    const newNotification = `Thank you for applying to become an instructor on our platform. We have received your application and appreciate you taking the time to apply. Our team will review your application and get back to you as soon as possible.`;
-
-    await createNotification(
-      "New Instructor Application",
-      newNotification,
-      user?.id ?? "",
-    );
+    await Promise.all([
+      createAuditLog({
+        user: JSON.stringify(user),
+        action: "CREATE INSTRUCTOR",
+        oldData: JSON.stringify(instructor),
+        newData: JSON.stringify(newInstructor),
+        section: "INSTRUCTOR",
+      }),
+      createNotification(
+        "New Instructor Application",
+        notificationMessage,
+        userId,
+      ),
+    ]);
 
     response.status(201).json({
       message:
         "Instructor created successfully. We will get back to you as soon as possible.",
-    });
-
-    sendUserEmailNotification({
-      emailAddress: user?.emailAddress || "",
-      userName: user?.firstName + " " + user?.lastName,
-    });
-
-    sendAdminEmailMessages({
-      title: "New Instructor Application",
-      message: `New  application for instructor position from ${user?.firstName} ${user?.lastName}. Please check the  instructors section of the admin dashboard for more details.`,
-      subject: `New  application for instructor position from ${user?.firstName} ${user?.lastName}`,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -130,54 +179,68 @@ export const updateInstructor: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { bio, languages, skills } = request.body;
-
+    const { bio, languages, skills, experience, links, profession } =
+      request.body;
     const userId = (request as CustomRequest).user?.id;
 
-    const user = await findUserById(userId);
-    let instructor = await findInstructorByUserId(userId);
+    const [user, instructor] = await Promise.all([
+      findUserById(userId),
+      findInstructorByUserId(userId),
+    ]);
 
     if (!instructor) {
-      if (user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN) {
-        instructor = await createNewInstructor(
-          userId,
-          bio,
-          languages,
-          skills,
-          INSTRUCTOR.APPROVED,
-        );
-      }
+      return next(
+        makeError("You are not an instructor to carry out this action.", 403),
+      );
     }
 
-    if (instructor?.status !== INSTRUCTOR.APPROVED) {
-      const error = new Error(
-        "You are not authorized to perform this action. Please contact the support team for more information.",
-      ) as ResponseError;
-      error.statusCode = 403;
-      return next(error);
+    if (instructor.status !== INSTRUCTOR.APPROVED) {
+      return next(
+        makeError(
+          "Your instructor account is not approved. Please contact the support team for more information.",
+          403,
+        ),
+      );
     }
 
-    await updateInstructorProfile(userId, bio, languages, skills);
+    if (!user) {
+      return next(makeError("User not found. Please try again later.", 404));
+    }
+
+    const profileUpdates = {
+      bio,
+      profession,
+      experience,
+      languages,
+      skills,
+      links,
+    };
+
+    await updateInstructorProfile(
+      userId,
+      user?.firstName || "",
+      user?.lastName || "",
+      bio,
+      profession,
+      experience,
+      languages,
+      skills,
+      links,
+    );
 
     await createAuditLog({
       user: JSON.stringify(user),
       action: "UPDATE INSTRUCTOR",
       oldData: JSON.stringify(instructor),
-      newData: JSON.stringify({
-        bio,
-        languages,
-        skills,
-      }),
+      newData: JSON.stringify({ ...instructor, ...profileUpdates }),
       section: "INSTRUCTOR",
     });
 
     const updatedInstructor = await findInstructorByUserId(userId);
 
-    response.status(201).json({
+    response.status(200).json({
       message: "Instructor profile updated successfully.",
-      data: {
-        instructor: updatedInstructor,
-      },
+      data: { instructor: updatedInstructor },
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -192,30 +255,26 @@ export const getInstructors: RequestHandler = async (
 ) => {
   try {
     const { keyword, pageNumber, pageSize, status } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
-
-    const instructors = await getAllInstructors(
-      keyword as string,
-      status as string,
-      offsetSize,
-      newPageSize,
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await getAllInstructors(
-      keyword as string,
-      status as string,
-    );
+    const [instructors, totalRecords] = await Promise.all([
+      getAllInstructors(
+        keyword as string,
+        status as string,
+        offsetSize,
+        newPageSize,
+      ),
+      getAllInstructors(keyword as string, status as string) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: instructors,
     });
   } catch (err) {
@@ -231,17 +290,16 @@ export const getInstructor: RequestHandler = async (
 ) => {
   try {
     const { id } = request.params;
+    const instructor = await getInstructorByUserId(id);
 
-    const instructor = await getInstructorById(id);
-
-    if (instructor?.userId) {
-      const user = await findUserById(instructor.userId);
-      instructor.user = user;
+    if (!instructor?.userId) {
+      return next(makeError("Instructor not found.", 404));
     }
 
-    response.status(201).json({
-      data: instructor,
-    });
+    const user = await findUserById(instructor.userId);
+    instructor.user = user;
+
+    response.status(200).json({ data: instructor });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -256,99 +314,106 @@ export const reviewInstructors: RequestHandler = async (
   try {
     const { id, status, comment } = request.body;
 
-    const user = (request as CustomRequest).user;
+    const reviewerId = (request as CustomRequest).user?.id;
 
-    const adminUser = await findUserById(user?.id);
-
-    if (!adminUser) {
-      const error = new Error(
-        "Something went wrong. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+    if (!VALID_INSTRUCTOR_REVIEW_STATUSES.has(status)) {
+      return next(makeError("Invalid status. Please try again later.", 400));
     }
 
-    const targetInstructor = await getInstructorById(id);
+    const [targetInstructor, reviewer] = await Promise.all([
+      getInstructorById(id),
+      findUserById(reviewerId),
+    ]);
 
     if (!targetInstructor?.userId) {
-      const error = new Error(
-        "Instructor not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    if (
-      status !== INSTRUCTOR.PENDING &&
-      status !== INSTRUCTOR.APPROVED &&
-      status !== INSTRUCTOR.SUSPENDED &&
-      status !== INSTRUCTOR.DEACTIVATED &&
-      status !== INSTRUCTOR.REJECTED
-    ) {
-      const error = new Error(
-        "Invalid status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError("Instructor not found. Please try again later.", 404),
+      );
     }
 
     if (status === targetInstructor.status) {
-      const error = new Error(
-        "Instructor is already in the selected status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Instructor is already in the selected status. Please try again later.",
+          400,
+        ),
+      );
     }
 
-    await updateInstructorStatus(id, status);
+    const newRole =
+      status === INSTRUCTOR.APPROVED ? ROLES.INSTRUCTOR : ROLES.USER;
 
-    if (status === INSTRUCTOR.APPROVED) {
-      await updateUserRole(targetInstructor.userId, ROLES.INSTRUCTOR);
-    } else {
-      await updateUserRole(targetInstructor.userId, ROLES.USER);
-    }
+    await Promise.all([
+      updateInstructorStatus(id, status),
+      updateUserRole(targetInstructor.userId, newRole),
+    ]);
 
-    await createAuditLog({
-      user: JSON.stringify(adminUser),
-      action: "REVIEW INSTRUCTOR",
-      oldData: JSON.stringify(targetInstructor),
-      newData: JSON.stringify({
-        ...targetInstructor,
-        status,
-        comment,
+    const notificationMessage = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
+
+    await Promise.all([
+      createNotification(
+        "Your instructor application has been reviewed",
+        notificationMessage,
+        targetInstructor.userId,
+      ),
+      createAuditLog({
+        user: JSON.stringify(reviewer),
+        action: "REVIEW INSTRUCTOR",
+        oldData: JSON.stringify(targetInstructor),
+        newData: JSON.stringify({ ...targetInstructor, status, comment }),
+        section: "INSTRUCTOR",
       }),
-      section: "INSTRUCTOR",
-    });
+    ]);
 
-    const newNotification = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
+    response
+      .status(200)
+      .json({ message: "Instructor application reviewed successfully." });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
 
-    await createNotification(
-      "Your instructor application has been reviewed",
-      newNotification,
-      targetInstructor?.userId ?? "",
+export const getActiveInstructors: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { keyword, pageNumber, pageSize } = request.query;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    await createAuditLog({
-      user: JSON.stringify(adminUser),
-      action: "NEW NOTIFICATION",
-      newData: JSON.stringify({
-        title: "Your instructor application has been reviewed",
-        message: newNotification,
-        receiverId: targetInstructor?.userId ?? "",
-        senderId: null,
-      }),
-      section: "NOTIFICATION",
+    const [instructors, totalRecords] = await Promise.all([
+      fetchActiveInstructors(keyword as string, offsetSize, newPageSize),
+      fetchActiveInstructors(keyword as string) as Promise<number>,
+    ]);
+
+    response.status(200).json({
+      currentPage: newPageNumber,
+      pageSize: newPageSize,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
+      data: instructors,
     });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
 
-    response.status(201).json({
-      message: "Instructor application reviewed successfully.",
-    });
+export const getHomeInstructors: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const users = await fetchHomeInstructors();
 
-    const targetUser = await findUserById(targetInstructor.userId);
-
-    sendUserEmailNotification({
-      emailAddress: targetUser?.emailAddress || "",
-      userName: targetUser?.firstName + " " + targetUser?.lastName || "",
+    response.status(200).json({
+      data: users,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

@@ -55,8 +55,8 @@ export const getMessages = async (
     where,
 
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
         exclude: MESSAGE_EXCLUDED_ATTRIBUTES,

@@ -9,6 +9,20 @@ export const APP_NAME = "TutorsHub";
 
 export const APP_URL = "http://localhost:3000";
 
+export const MAX_PARTICIPANT_PER_FREE_LESSON = 100;
+export const MAX_PARTICIPANT_PER_PAID_LESSON = 50;
+
+export const INSTRUCTOR_PERCENTAGE = 70;
+export const PLATFORM_PERCENTAGE = 30;
+export const AMOUNT_PER_LESSON = 5000;
+
+export const AUTH_CONFIG = {
+  EMAIL_TOKEN_TTL_MINUTES: 15,
+  TOKEN_EXPIRY: 60 * 60 * 24 * 7,
+};
+
+export const DEFAULT_CURRENCY = "USD";
+
 export const LESSON = {
   PENDING: "PENDING",
   ACTIVE: "ACTIVE",
@@ -16,6 +30,7 @@ export const LESSON = {
   SUSPENDED: "SUSPENDED",
   ACTIVATE: "ACTIVATE",
   DEACTIVATED: "DEACTIVATED",
+  IN_ACTIVE: "IN_ACTIVE",
 };
 
 export const USER = {
@@ -58,6 +73,13 @@ export const TRANSACTION_TYPE = {
   PAYMENT: "PAYMENT",
   PAYOUT: "PAYOUT",
   EARNING: "EARNING",
+};
+
+export const TRANSACTION_STATUS = {
+  PENDING: "PENDING",
+  SUCCESSFUL: "SUCCESSFUL",
+  FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
 };
 
 export const VERIFICATION = {
@@ -112,6 +134,17 @@ export const LESSON_ENROLLMENT = {
   COMPLETED: "COMPLETED",
 };
 
+export const LESSON_ATTENDANCE = {
+  ATTENDED: "ATTENDED",
+  LEFT: "LEFT",
+  ABSENT: "ABSENT",
+};
+
+export const LESSON_PRICE = {
+  FREE: "FREE",
+  PAID: "PAID",
+};
+
 export const REVIEW = {
   ACTIVE: "ACTIVE",
   SUSPENDED: "SUSPENDED",
@@ -127,6 +160,10 @@ export const USER_EXCLUDED_ATTRIBUTES = [
   "tokenExpiry",
   "tokenExpiryStatus",
 ];
+
+export const REVIEW_COMMENT = {
+  ACTIVE: "ACTIVE",
+};
 
 export const INSTRUCTOR_EXCLUDED_ATTRIBUTES = [];
 
@@ -145,6 +182,8 @@ export const ENROLLEE_EXCLUDED_ATTRIBUTES = [];
 export const REVIEW_EXCLUDED_ATTRIBUTES = [];
 
 export const REPORT_EXCLUDED_ATTRIBUTES = [];
+
+export const REVIEW_COMMENT_EXCLUDED_ATTRIBUTES = [];
 
 export const MAIL_CONFIG = {
   sender: "no-reply@one-block.org",

@@ -8,3 +8,12 @@ export const createServerError = async (err: Error, status: number) => {
   error.statusCode = status;
   return error;
 };
+
+export const makeError = (
+  message: string,
+  statusCode: number,
+): ResponseError => {
+  const error = new Error(message) as ResponseError;
+  error.statusCode = statusCode;
+  return error;
+};

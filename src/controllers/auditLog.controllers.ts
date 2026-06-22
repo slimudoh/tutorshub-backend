@@ -1,6 +1,7 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError } from "../services/error.services";
 import { getAuditLogs } from "../services/auditLog.services";
+import { paginationHelper } from "../utils/formatter";
 
 export const getAllAuditLogs: RequestHandler = async (
   request: Request,
@@ -9,26 +10,22 @@ export const getAllAuditLogs: RequestHandler = async (
 ) => {
   try {
     const { pageNumber, pageSize, keyword } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
 
-    const auditLogs = await getAuditLogs(
-      keyword as string,
-      offsetSize,
-      newPageSize,
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await getAuditLogs(keyword as string);
+    const [auditLogs, totalRecords] = await Promise.all([
+      getAuditLogs(keyword as string, offsetSize, newPageSize),
+      getAuditLogs(keyword as string) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: auditLogs,
     });
   } catch (err) {

@@ -19,28 +19,36 @@ export const fetchActiveCategories = async (keyword: string) => {
   });
 };
 
-export const fetchPopularCategories = async () => {
-  const lessons = await Lesson.findAll({
-    where: { status: LESSON.ACTIVE },
-    raw: true,
-  });
+export const fetchPopularCategories = async (limit = 10) => {
+  const [lessons, categories] = await Promise.all([
+    Lesson.findAll({
+      where: { status: LESSON.ACTIVE },
+      attributes: ["categoryId"],
+      raw: true,
+    }),
+    Category.findAll({
+      where: { status: CATEGORY.ACTIVE },
+      raw: true,
+    }),
+  ]);
 
-  const categories = await Category.findAll({
-    where: { status: CATEGORY.ACTIVE },
-    raw: true,
-  });
+  const lessonCountMap = new Map<string, number>();
+  for (const lesson of lessons) {
+    if (!lesson.categoryId) continue;
+    lessonCountMap.set(
+      lesson.categoryId,
+      (lessonCountMap.get(lesson.categoryId) ?? 0) + 1,
+    );
+  }
 
-  const popularCategories = categories
+  return categories
     .map((category) => ({
       ...category,
-      lessonCount: lessons.filter((lesson) => lesson.categoryId === category.id)
-        .length,
+      lessonCount: lessonCountMap.get(category.id ?? "") ?? 0,
     }))
     .filter((category) => category.lessonCount > 0)
     .sort((a, b) => b.lessonCount - a.lessonCount)
-    .slice(0, 10);
-
-  return popularCategories;
+    .slice(0, limit);
 };
 
 export const getAdminCategories = async (keyword?: string, status?: string) => {
@@ -69,7 +77,7 @@ export const getAdminCategories = async (keyword?: string, status?: string) => {
 export const findCategoryById = async (id: string) => {
   return await Category.findOne({
     where: {
-      id: id,
+      id,
     },
     raw: true,
   });
@@ -78,7 +86,7 @@ export const findCategoryById = async (id: string) => {
 export const findCategoryBySlug = async (slug: string) => {
   return await Category.findOne({
     where: {
-      slug: slug,
+      slug,
     },
     raw: true,
   });
@@ -87,7 +95,7 @@ export const findCategoryBySlug = async (slug: string) => {
 export const findCategoryByTitle = async (title: string) => {
   return await Category.findOne({
     where: {
-      title: title,
+      title,
     },
     raw: true,
   });
@@ -118,7 +126,6 @@ export const createNewCategory = async (data: {
 export const updateCurrentCategory = async (data: {
   id: string;
   title: string;
-  slug: string;
   description: string;
   userId: string;
   image: string | null;
@@ -126,11 +133,16 @@ export const updateCurrentCategory = async (data: {
   return await Category.update(
     {
       title: data.title,
-      slug: data.slug,
       description: data.description,
       image: data.image,
       userId: data.userId,
     },
     { where: { id: data.id } },
   );
+};
+
+export const findAllCategories = async () => {
+  return await Category.findAll({
+    raw: true,
+  });
 };

@@ -13,6 +13,9 @@ class PricingPlan extends Model {
   declare isUnlimited: boolean | null;
   declare features: string[] | null;
   declare status: string | null;
+  declare instructorPercentageFee: number | null;
+  declare platformPercentageFee: number | null;
+  declare amountPerSession: number | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -62,6 +65,18 @@ PricingPlan.init(
     },
     status: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    instructorPercentageFee: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    platformPercentageFee: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    amountPerSession: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
   },

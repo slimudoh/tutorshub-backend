@@ -1,7 +1,6 @@
 import { APP_NAME, APP_URL, MAIL_CONFIG } from "../utils/constant";
 import transporter from "../utils/mailer";
 import { Options } from "nodemailer/lib/mailer";
-import { getNotificationSettingsByUserEmail } from "./setting.services";
 import { getAllActiveAdminUsers } from "./user.services";
 
 type ExtendedOptions = Options & {
@@ -9,97 +8,38 @@ type ExtendedOptions = Options & {
   context: Record<string, unknown>;
 };
 
-//   newClass: boolean;
-//   classNotSubscribed: boolean;
-//   classSubscribed1Day: boolean;
-//   classSubscribed1Hour: boolean;
-//   classSubscribed30Minutes: boolean;
-//   classSubscribed15Minutes: boolean;
-//   classSubscribed5Minutes: boolean;
-//   classComplete: boolean;
-//   weeklySummary: boolean;
-//   monthlySummary: boolean;
-//   newReview: boolean;
-//   newBooking: boolean;
-//   bookingReminder: boolean;
-//   bookingCanceled: boolean;
-//   bookingCompleted: boolean;
-//   bookingRescheduled: boolean;
-
-export const sendSingleMail = async ({
-  from,
-  to,
-  context,
-  subject,
-  template,
-}: {
+type MailPayload = {
   from: string;
   to: string;
-  context: Record<string, unknown>;
   subject: string;
   template: string;
-}) => {
-  const options: ExtendedOptions = {
-    from,
-    to,
-    subject,
-    template,
-    context: {
-      ...context,
-      appName: APP_NAME,
-      year: new Date().getFullYear(),
-    },
-  };
+  context: Record<string, unknown>;
+};
 
-  const userSetting = await getNotificationSettingsByUserEmail(to);
-
-  if (!userSetting?.emailNotification) {
-    return;
-  }
-
-  return transporter.sendMail(options, (error: any, info: any) => {
-    if (error) {
-      console.error("Error sending email: ", error);
-    } else {
-      console.log("Email sent: " + info.response);
-    }
-  });
+export const sendSingleMail = async (payload: MailPayload) => {
+  return dispatchMail(buildMailOptions(payload));
 };
 
 export const sendMultipleMails = async ({
   from,
   dataList,
-  context,
-  subject,
-  template,
 }: {
   from: string;
   dataList: { name: string; email: string }[];
-  context: Record<string, unknown>;
-  subject: string;
-  template: string;
-}) => {
-  const emailPromises = dataList.map(async (data) => {
-    const userSetting = await getNotificationSettingsByUserEmail(data.email);
-
-    if (!userSetting?.emailNotification) {
-      return;
-    }
-
-    const options: ExtendedOptions = {
-      from,
-      to: data.email,
-      subject,
-      template,
-      context: {
-        ...context,
-        appName: APP_NAME,
-        year: new Date().getFullYear(),
-      },
-    };
-    return transporter.sendMail(options);
-  });
-  await Promise.all(emailPromises);
+}): Promise<void> => {
+  await Promise.all(
+    dataList.map((data) =>
+      dispatchMail(
+        buildMailOptions({
+          from,
+          to: data.email,
+          subject: `You have a notification from ${APP_NAME}`,
+          template: "userNotification.views",
+          context: notificationContext(data.name),
+        }),
+      ),
+    ),
+  );
 };
 
 export const sendAdminEmailMessages = async ({
@@ -110,24 +50,22 @@ export const sendAdminEmailMessages = async ({
   title: string;
   subject: string;
   message: string;
-}) => {
+}): Promise<void> => {
   const adminUsers = await getAllActiveAdminUsers();
-  await sendMultipleMails({
-    from: MAIL_CONFIG.sender,
-    dataList: adminUsers.map((adminUser) => {
-      return {
-        name: adminUser?.firstName || "",
-        email: adminUser?.emailAddress || "",
-      };
-    }),
-    context: {
-      title,
-      message,
-      link: `${APP_URL}/admin`,
-    },
-    subject,
-    template: "adminNotification.views",
-  });
+
+  await Promise.all(
+    adminUsers.map((admin) =>
+      dispatchMail(
+        buildMailOptions({
+          from: MAIL_CONFIG.sender,
+          to: admin.emailAddress || "",
+          subject,
+          template: "adminNotification.views",
+          context: { title, message, subject },
+        }),
+      ),
+    ),
+  );
 };
 
 export const sendUserEmailNotification = async ({
@@ -136,18 +74,51 @@ export const sendUserEmailNotification = async ({
 }: {
   emailAddress: string;
   userName: string;
-}) => {
-  sendSingleMail({
+}): Promise<void> => {
+  return sendSingleMail({
     from: MAIL_CONFIG.sender,
     to: emailAddress,
-    context: {
-      title: "You have a notification from TutorsHub",
-      userName,
-      message:
-        "You have received a new notification from TutorsHub. Please login to your account to view the notification.",
-      link: `${APP_URL}/user/notifications`,
-    },
-    subject: `You have a notification from TutorsHub`,
+    subject: `You have a notification from ${APP_NAME}`,
     template: "userNotification.views",
+    context: notificationContext(userName),
   });
 };
+
+export const dispatchMail = (options: ExtendedOptions): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(options, (error: any, info: any) => {
+      if (error) {
+        console.error("Error sending email:", error);
+        reject(error);
+      } else {
+        console.log("Email sent:", info.response);
+        resolve();
+      }
+    });
+  });
+};
+
+export const buildMailOptions = ({
+  from,
+  to,
+  subject,
+  template,
+  context,
+}: MailPayload): ExtendedOptions => ({
+  from,
+  to,
+  subject,
+  template,
+  context: {
+    ...context,
+    appName: APP_NAME,
+    year: new Date().getFullYear(),
+  },
+});
+
+export const notificationContext = (userName: string) => ({
+  title: `You have a notification from ${APP_NAME}`,
+  userName,
+  message: `You have received a new notification from ${APP_NAME}. Please login to your account to view the notification.`,
+  link: `${APP_URL}/user/notifications`,
+});

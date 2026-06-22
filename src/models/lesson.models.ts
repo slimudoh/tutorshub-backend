@@ -1,29 +1,49 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
-
-// late_join_minutes INT DEFAULT 10
+import User from "./user.models";
+import Category from "./category.models";
+import Instructor from "./instructor.models";
+import Review from "./review.models";
 
 class Lesson extends Model {
   declare id: string | null;
+  declare slug: string | null;
   declare userId: string | null;
   declare categoryId: string | null;
   declare title: string | null;
   declare description: string | null;
   declare level: string | null;
-  declare status: string | null;
   declare language: string | null;
-  declare duration: string | null;
   declare isLive: boolean | null;
   declare isFree: boolean | null;
   declare creditsRequired: number | null;
-  declare lateJoinMinutes: number | null;
   declare maxStudents: number | null;
-  declare startTime: Date | null;
-  declare joinLink: string | null;
-  declare meetingId: string | null;
-  declare meetingPassword: string | null;
+  declare durationMinutes: number | null;
+  declare lateJoinMinutes: number | null;
+  declare lessonDate: Date | null;
+  declare startTime: string | null;
+  declare endTime: string | null;
+  declare status: string | null;
+  declare image: string | null;
+  declare lectures: string | null;
+  declare seoTitle: string | null;
+  declare seoDescription: string | null;
+  declare seoTags: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
+  declare user: User | null;
+  declare instructor: Instructor | null;
+  declare category: Category | null;
+  declare wishlist: boolean | null;
+  declare enrolled: boolean | null;
+  declare enrollees: number | null;
+  declare reviewCount: number | null;
+  declare rating: number | null;
+  declare seatsLeft: number | null;
+  declare lessonAttendance: User[] | null;
+  declare lessonReviews: Review[] | null;
+  declare isReviewedByUser: boolean | null;
+  declare canReview: boolean | null;
 }
 
 Lesson.init(
@@ -32,6 +52,10 @@ Lesson.init(
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
+    },
+    slug: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     userId: {
       type: DataTypes.UUID,
@@ -61,8 +85,8 @@ Lesson.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    duration: {
-      type: DataTypes.STRING,
+    durationMinutes: {
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     isLive: {
@@ -82,24 +106,40 @@ Lesson.init(
       allowNull: true,
       defaultValue: 10,
     },
+    lessonDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     maxStudents: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
     startTime: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-    joinLink: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    meetingId: {
+    endTime: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    meetingPassword: {
+    lectures: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    image: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    seoTitle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    seoDescription: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    seoTags: {
+      type: DataTypes.TEXT,
       allowNull: true,
     },
   },

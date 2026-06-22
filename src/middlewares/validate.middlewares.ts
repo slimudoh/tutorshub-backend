@@ -1,19 +1,21 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { validationResult } from "express-validator";
-import { ResponseError } from "../interfaces";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 
-const Validate: RequestHandler = async (
+const validate: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
-): Promise<any> => {
+): Promise<void> => {
   try {
     const errors = validationResult(request);
     if (!errors.isEmpty()) {
-      const error = new Error(errors.array()[0].msg) as ResponseError;
-      error.statusCode = 422;
-      return next(error);
+      const message = errors
+        .array()
+        .map((error) => error.msg)
+        .join(", ");
+
+      return next(makeError(message, 422));
     }
 
     next();
@@ -23,4 +25,4 @@ const Validate: RequestHandler = async (
   }
 };
 
-export default Validate;
+export default validate;

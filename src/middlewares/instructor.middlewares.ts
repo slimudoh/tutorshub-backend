@@ -1,15 +1,14 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
-import { ROLES } from "../utils/constant";
+import { INSTRUCTOR, ROLES } from "../utils/constant";
 import { Users } from "../interfaces/user";
-import { ResponseError } from "../interfaces";
 import {
   checkUserAccountStatus,
   checkUserEmailVerificationStatus,
   findUserById,
 } from "../services/user.services";
-import { createServerError } from "../services/error.services";
-import { findInstructorByUserId } from "../services/instructor.services";
+import { getInstructorByUserId } from "../services/instructor.services";
+import { createServerError, makeError } from "../services/error.services";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -19,24 +18,18 @@ const isInstructor: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
-): Promise<any> => {
+): Promise<void> => {
   try {
     const user = (request as CustomRequest).user;
 
     if (!user?.id) {
-      const error = new Error("You are not logged in.") as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+      return next(makeError("You are not logged in.", 401));
     }
 
     const authUser = await findUserById(user.id, false);
 
-    if (!authUser?.role) {
-      const error = new Error(
-        "You are not authorized to view this page.",
-      ) as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+    if (!authUser) {
+      return next(makeError("You are not logged in.", 401));
     }
 
     if (
@@ -44,27 +37,48 @@ const isInstructor: RequestHandler = async (
       authUser.role !== ROLES.ADMIN &&
       authUser.role !== ROLES.SUPER_ADMIN
     ) {
-      const error = new Error(
-        "You are not authorized to view this page.",
-      ) as ResponseError;
-      error.statusCode = 401;
-      return next(error);
+      return next(makeError("You are not authorized to view this page.", 403));
     }
 
     const accountStatus = await checkUserAccountStatus(authUser.status);
     if (accountStatus.status !== 200) {
-      const error = new Error(accountStatus.message) as ResponseError;
-      error.statusCode = accountStatus.status;
-      return next(error);
+      return next(makeError(accountStatus.message, accountStatus.status));
     }
 
     const emailVerificationStatus = await checkUserEmailVerificationStatus(
       authUser.emailVerified,
     );
     if (emailVerificationStatus.status !== 200) {
-      const error = new Error(emailVerificationStatus.message) as ResponseError;
-      error.statusCode = emailVerificationStatus.status;
-      return next(error);
+      return next(
+        makeError(
+          emailVerificationStatus.message,
+          emailVerificationStatus.status,
+        ),
+      );
+    }
+
+    if (!authUser.id) {
+      return next(makeError("You are not authorized to view this page.", 401));
+    }
+
+    const instructor = await getInstructorByUserId(authUser.id);
+
+    if (!instructor?.userId) {
+      return next(
+        makeError(
+          "You are not an instructor. You have to apply to become an instructor. Please contact the administrator for more information.",
+          403,
+        ),
+      );
+    }
+
+    if (instructor.status !== INSTRUCTOR.APPROVED) {
+      return next(
+        makeError(
+          "Your instructor account is not active. Please contact the administrator for more information.",
+          403,
+        ),
+      );
     }
 
     next();

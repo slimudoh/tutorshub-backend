@@ -11,7 +11,6 @@ import {
   updatePricingPlans,
   autoRenewSubscription,
   cancelSubscriptionPlans,
-  changePricingPlan,
 } from "../controllers/pricing.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
 import { check } from "express-validator";
@@ -30,10 +29,20 @@ router.post(
   check("title").notEmpty().withMessage("Title is required."),
   check("description").notEmpty().withMessage("Description is required."),
   check("amount").notEmpty().withMessage("Amount is required."),
+  check("amountPerSession")
+    .notEmpty()
+    .withMessage("Amount per session is required."),
+  check("instructorPercentageFee")
+    .notEmpty()
+    .withMessage("Instructor percentage fee is required."),
+  check("platformPercentageFee")
+    .notEmpty()
+    .withMessage("Platform percentage fee is required."),
   check("currency").notEmpty().withMessage("Currency is required."),
   check("billingCycle").notEmpty().withMessage("Billing cycle is required."),
   check("lessonLimit").notEmpty().withMessage("Lesson limit is required."),
   check("features").notEmpty().withMessage("Features is required."),
+
   Validate,
   isAuth,
   isAdmin,
@@ -50,7 +59,7 @@ router.patch(
   reviewAdminPricingPlan,
 );
 
-router.post(
+router.patch(
   "/subscription-auto-renew",
   check("id").notEmpty().withMessage("ID is required."),
   check("autoRenew").notEmpty().withMessage("Auto renew is required."),
@@ -71,19 +80,19 @@ router.patch(
 );
 
 router.patch(
-  "/change-pricing-plan",
-  check("id").notEmpty().withMessage("ID is required."),
-  Validate,
-  isAuth,
-  isUser,
-  changePricingPlan,
-);
-
-router.post(
   "/:id",
   check("title").notEmpty().withMessage("Title is required."),
   check("description").notEmpty().withMessage("Description is required."),
   check("amount").notEmpty().withMessage("Amount is required."),
+  check("amountPerSession")
+    .notEmpty()
+    .withMessage("Amount per session is required."),
+  check("instructorPercentageFee")
+    .notEmpty()
+    .withMessage("Instructor percentage fee is required."),
+  check("platformPercentageFee")
+    .notEmpty()
+    .withMessage("Platform percentage fee is required."),
   check("currency").notEmpty().withMessage("Currency is required."),
   check("billingCycle").notEmpty().withMessage("Billing cycle is required."),
   check("lessonLimit").notEmpty().withMessage("Lesson limit is required."),

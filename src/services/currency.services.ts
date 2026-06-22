@@ -1,7 +1,12 @@
 import { Op } from "@sequelize/core";
 import Currency from "../models/currency.models";
-import { CURRENCY } from "../utils/constant";
+import { CURRENCY, DEFAULT_CURRENCY } from "../utils/constant";
 import Rate from "../models/rate.models";
+
+const failedRateResponse = (currency: string) => ({
+  success: false,
+  message: `We cannot update ${currency} rates at this time. Please try again later.`,
+});
 
 export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
   let where = {};
@@ -46,7 +51,7 @@ export const findAllActiveCurrencies = async () => {
 export const findCurrencyById = async (id: string) => {
   return await Currency.findOne({
     where: {
-      id: id,
+      id,
     },
     raw: true,
   });
@@ -63,159 +68,100 @@ export const findRateByFromCurrency = async (currency: string) => {
   return rates;
 };
 
-export const fetchRate = async (currency: string) => {
-  let result: any = await fetch(
-    `https://open.er-api.com/v6/latest/${currency || "USD"}`,
-  );
-
-  return result;
+const fetchRate = async (currency: string): Promise<Response> => {
+  return fetch(`https://open.er-api.com/v6/latest/${currency}`);
 };
 
-export const fetchNewRates = async (currency?: string) => {
-  let result: any = await fetchRate(currency || "USD");
-  if (!result.ok) {
-    return {
-      success: false,
-      message: `We cannot update ${currency || "USD"} rates at this time. Please try again later.`,
-    };
-  }
+export const fetchNewRates = async (currency = DEFAULT_CURRENCY) => {
+  const response = await fetchRate(currency);
 
-  result = await result.json();
+  if (!response.ok) return failedRateResponse(currency);
 
-  if (result?.result !== "success") {
-    return {
-      success: false,
-      message: `We cannot update ${currency || "USD"} rates at this time. Please try again later.`,
-    };
-  }
+  const result = await response.json();
 
-  return {
-    success: true,
-    data: result,
-  };
+  if (result?.result !== "success") return failedRateResponse(currency);
+
+  return { success: true, data: result };
 };
 
-export const addAllCurrencies = async (rates: any) => {
-  const newCurrencies: {
-    id: string;
-    symbol: string;
-    amount: any;
-    status: string;
-  }[] = [];
-
-  for (const [key, value] of Object.entries(rates)) {
-    newCurrencies.push({
-      id: crypto.randomUUID(),
-      symbol: key,
-      amount: value,
-      status: CURRENCY.SUSPENDED,
-    });
-  }
+export const addAllCurrencies = async (
+  rates: Record<string, number>,
+): Promise<void> => {
+  const newCurrencies = Object.entries(rates).map(([symbol, amount]) => ({
+    id: crypto.randomUUID(),
+    symbol,
+    amount,
+    status: CURRENCY.SUSPENDED,
+  }));
 
   await Currency.bulkCreate(newCurrencies);
 };
 
-export const updateAllCurrencies = async (rates: any) => {
+export const updateAllCurrencies = async (
+  rates: Record<string, number>,
+): Promise<void> => {
   const currencies = await Currency.findAll({
+    attributes: ["symbol"],
     raw: true,
   });
 
-  let newCurrencies: {
-    symbol: string;
-    amount: any;
-  }[] = [];
+  const symbolSet = new Set(currencies.map((c) => c.symbol));
 
-  for (const [key, value] of Object.entries(rates)) {
-    for (const currency of currencies) {
-      if (currency.symbol === key) {
-        newCurrencies.push({
-          symbol: currency.symbol,
-          amount: value,
-        });
-      }
-    }
-  }
-
-  if (newCurrencies.length > 0) {
-    await Promise.all(
-      newCurrencies.map((currency) => {
-        return Currency.update(
-          {
-            amount: currency.amount,
-          },
-          {
-            where: {
-              symbol: currency.symbol,
-            },
-          },
-        );
-      }),
+  const updates = Object.entries(rates)
+    .filter(([symbol]) => symbolSet.has(symbol))
+    .map(([symbol, amount]) =>
+      Currency.update({ amount }, { where: { symbol } }),
     );
-  }
+
+  await Promise.all(updates);
 };
 
-export const updateCurrenciesList = async () => {
+export const updateCurrenciesList = async (): Promise<void> => {
   const currencies = await Currency.findAll({
-    where: {
-      status: CURRENCY.ACTIVE,
-    },
+    where: { status: CURRENCY.ACTIVE },
+    attributes: ["symbol"],
     raw: true,
   });
 
-  for (const currency of currencies) {
-    if (currency?.symbol) {
-      const response = await getCurrencyData(currency.symbol);
+  for (const { symbol } of currencies) {
+    if (!symbol) continue;
 
-      let newRates: any = [];
+    const rateData = await getCurrencyData(symbol);
+    if (!rateData) continue;
 
-      for (const [key, value] of Object.entries(response)) {
-        if (Number(value) > 0) {
-          newRates.push({
-            id: crypto.randomUUID(),
-            fromCurrency: currency.symbol,
-            toCurrency: key,
-            amount: value,
-            status: CURRENCY.ACTIVE,
-          });
-        }
-      }
+    const newRates = Object.entries(rateData)
+      .filter(([, value]) => Number(value) > 0)
+      .map(([toCurrency, amount]) => ({
+        id: crypto.randomUUID(),
+        fromCurrency: symbol,
+        toCurrency,
+        amount,
+        status: CURRENCY.ACTIVE,
+      }));
 
-      if (newRates.length > 0) {
-        await Rate.destroy({
-          where: {
-            fromCurrency: currency.symbol,
-          },
-        });
-      }
+    if (!newRates.length) continue;
 
-      await Rate.bulkCreate(newRates);
-    }
+    await Rate.destroy({ where: { fromCurrency: symbol } });
+    await Rate.bulkCreate(newRates);
   }
 };
 
-export const getCurrencyData = async (currency: string) => {
-  let response: any = await fetchRate(currency);
+export const getCurrencyData = async (
+  currency: string,
+): Promise<Record<string, number> | null> => {
+  const response = await fetchRate(currency);
 
-  if (response.ok) {
-    response = await response.json();
+  if (!response.ok) return null;
 
-    if (response.result === "success") {
-      return response.rates;
-    }
-  }
+  const result = await response.json();
+
+  if (result?.result !== "success") return null;
+
+  return result.rates;
 };
 
 export const updateCurrencyStatus = async (id: string, status: string) => {
-  return await Currency.update(
-    {
-      status,
-    },
-    {
-      where: {
-        id,
-      },
-    },
-  );
+  return await Currency.update({ status }, { where: { id } });
 };
 
 export const updateCurrency = async (
@@ -225,92 +171,74 @@ export const updateCurrency = async (
   id: string,
 ) => {
   return await Currency.update(
-    {
-      country,
-      countryCode,
-      currency,
-      status: CURRENCY.ACTIVE,
-    },
-    {
-      where: { id },
-    },
+    { country, countryCode, currency, status: CURRENCY.ACTIVE },
+    { where: { id } },
   );
 };
 
-export const getUserCurrency = async (request: any) => {
+export const getUserCurrency = async (request: any): Promise<string> => {
   const location = request.header("Location");
-
-  if (location) {
-    const currency = await Currency.findOne({
-      where: {
-        countryCode: location,
-        status: CURRENCY.ACTIVE,
-      },
-      raw: true,
-    });
-
-    if (currency) {
-      return currency?.symbol;
-    }
-  }
 
   const currency = await Currency.findOne({
     where: {
-      symbol: "USD",
+      ...(location ? { countryCode: location } : { symbol: DEFAULT_CURRENCY }),
       status: CURRENCY.ACTIVE,
     },
     raw: true,
   });
 
-  return currency ? currency?.symbol : "USD";
+  return currency?.symbol || DEFAULT_CURRENCY;
 };
 
 export const convertSingleCurrency = async (
   payload: any,
   userCurrency: string,
 ) => {
-  const rates = await Rate.findAll({
+  if (!userCurrency) return payload;
+
+  const rate = await Rate.findOne({
+    where: {
+      fromCurrency: payload.currency,
+      toCurrency: userCurrency,
+    },
     raw: true,
   });
 
-  for (const rate of rates) {
-    if (rate?.amount && userCurrency) {
-      if (
-        userCurrency === rate?.toCurrency &&
-        payload.currency === rate?.fromCurrency
-      ) {
-        payload.currency = userCurrency;
-        payload.amount = payload?.amount
-          ? Number((Number(rate.amount) * payload.amount).toFixed(2))
-          : 0;
-      }
-    }
-  }
+  if (!rate?.amount) return payload;
 
-  return payload;
+  return {
+    ...payload,
+    currency: userCurrency,
+    amount: Number((Number(rate.amount) * payload.amount).toFixed(2)),
+  };
 };
 
 export const convertMultipleCurrencies = async (
   payload: any[],
-  userCurrency: any,
+  userCurrency: string,
 ) => {
+  if (!userCurrency || !payload.length) return payload;
+
+  const fromCurrencies = [...new Set(payload.map((p) => p.currency))];
+
   const rates = await Rate.findAll({
+    where: {
+      fromCurrency: { [Op.in]: fromCurrencies },
+      toCurrency: userCurrency,
+    },
     raw: true,
   });
 
-  for (const rate of rates) {
-    for (const item of payload) {
-      if (rate?.amount && userCurrency) {
-        if (
-          userCurrency === rate?.toCurrency &&
-          item.currency === rate?.fromCurrency
-        ) {
-          item.currency = userCurrency;
-          item.amount = (Number(rate.amount) * item.amount).toFixed(2);
-        }
-      }
-    }
-  }
+  const rateMap = new Map(rates.map((r) => [r.fromCurrency, Number(r.amount)]));
 
-  return payload;
+  return payload.map((item) => {
+    const rate = rateMap.get(item.currency);
+    if (!rate) return item;
+
+    return {
+      ...item,
+      currency: userCurrency,
+      amount: Number((rate * item.amount).toFixed(2)),
+    };
+  });
 };

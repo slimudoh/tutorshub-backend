@@ -7,6 +7,8 @@ import {
   getInstructor,
   reviewInstructors,
   updateInstructor,
+  getActiveInstructors,
+  getHomeInstructors,
 } from "../controllers/instructor.controllers";
 import Validate from "../middlewares/validate.middlewares";
 import { check } from "express-validator";
@@ -19,9 +21,14 @@ router.get("/", isAuth, isAdmin, getInstructors);
 
 router.post(
   "/",
+  check("profession").notEmpty().withMessage("Your profession is required."),
   check("bio").notEmpty().withMessage("Your bio is required."),
+  check("experience").notEmpty().withMessage("Your experience is required."),
   check("languages").notEmpty().withMessage("Your languages are required."),
   check("skills").notEmpty().withMessage("Your skills are required."),
+  check("links")
+    .notEmpty()
+    .withMessage("Your social media links are required."),
   Validate,
   isAuth,
   isUser,
@@ -30,9 +37,14 @@ router.post(
 
 router.patch(
   "/update-instructor",
+  check("profession").notEmpty().withMessage("Your profession is required."),
   check("bio").notEmpty().withMessage("Your bio is required."),
+  check("experience").notEmpty().withMessage("Your experience is required."),
   check("languages").notEmpty().withMessage("Your languages are required."),
   check("skills").notEmpty().withMessage("Your skills are required."),
+  check("links")
+    .notEmpty()
+    .withMessage("Your social media links are required."),
   Validate,
   isAuth,
   isInstructor,
@@ -49,6 +61,12 @@ router.patch(
   reviewInstructors,
 );
 
-router.get("/:id", isAuth, isAdmin, getInstructor);
+router.get("/active-instructors", getActiveInstructors);
+
+router.get("/home-instructors", getHomeInstructors);
+
+router.get("/admin/:id", isAuth, isAdmin, getInstructor);
+
+router.get("/user/:id", getInstructor);
 
 export default router;

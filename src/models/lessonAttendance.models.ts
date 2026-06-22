@@ -5,11 +5,16 @@ class LessonAttendance extends Model {
   declare id: string | null;
   declare userId: string | null;
   declare lessonId: string | null;
-  declare joinTime: string | null;
-  declare leaveTime: string | null;
-  declare durationMinutes: string | null;
+  declare joinTime: Date | null;
+  declare leaveTime: Date | null;
+  declare durationMinutes: number | null;
   declare eligibleForPayout: boolean | null;
+  declare currency: string | null;
   declare payoutAmount: number | null;
+  declare platformAmount: number | null;
+  declare joinLink: string | null;
+  declare isHost: boolean | null;
+  declare status: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -30,23 +35,44 @@ LessonAttendance.init(
       allowNull: true,
     },
     joinTime: {
-      type: DataTypes.STRING,
+      type: DataTypes.DATE,
       allowNull: true,
     },
     leaveTime: {
-      type: DataTypes.STRING,
+      type: DataTypes.DATE,
       allowNull: true,
     },
     durationMinutes: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     eligibleForPayout: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
     },
+    currency: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     payoutAmount: {
       type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    platFormAmount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    joinLink: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    isHost: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+    },
+    status: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },

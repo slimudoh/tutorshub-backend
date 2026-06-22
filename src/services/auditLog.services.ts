@@ -21,6 +21,27 @@ export const createAuditLog = async (payload: {
   });
 };
 
+export const createBulkAuditLogs = async (
+  payload: {
+    user?: string;
+    action?: string;
+    oldData?: string;
+    newData?: string;
+    section?: string;
+  }[],
+) => {
+  await AuditLog.bulkCreate(
+    payload.map((item) => ({
+      id: crypto.randomUUID(),
+      user: item.user ? excludeFields(item.user) : null,
+      action: item.action,
+      oldData: item.oldData ? excludeFields(item.oldData) : null,
+      newData: item.newData ? excludeFields(item.newData) : null,
+      section: item.section,
+    })),
+  );
+};
+
 export const getAuditLogs = async (
   keyword?: string,
   offsetSize?: number,
@@ -47,8 +68,8 @@ export const getAuditLogs = async (
   return await AuditLog.findAll({
     where,
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     raw: true,
   });
 };

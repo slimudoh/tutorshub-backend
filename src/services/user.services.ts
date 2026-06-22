@@ -10,6 +10,7 @@ import {
 import { Op } from "sequelize";
 import moment from "moment";
 import DeletedAccount from "../models/deletedAccount.models";
+import sequelize from "../utils/db";
 
 export const deleteUserByEmail = async (emailAddress: string) => {
   await User.destroy({
@@ -23,15 +24,17 @@ export const getUserName = async (firstName: string): Promise<string> => {
   const adjectives = ["swift", "bright", "cool", "lucky", "bold"];
   const nouns = ["tiger", "falcon", "panda", "eagle", "wolf"];
 
-  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const suffix = Math.floor(100 + Math.random() * 900);
+  for (let attempts = 0; attempts < 10; attempts++) {
+    const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const suffix = Math.floor(100 + Math.random() * 900);
+    const candidate = `${firstName.toLowerCase()}_${adj}_${noun}_${suffix}`;
 
-  const candidate = `${firstName.toLowerCase()}_${adj}_${noun}_${suffix}`;
+    const exists = await User.findOne({ where: { userName: candidate } });
+    if (!exists) return candidate;
+  }
 
-  const exists = await User.findOne({ where: { userName: candidate } });
-  if (exists) return getUserName(firstName);
-  return candidate;
+  return `${firstName.toLowerCase()}_${crypto.randomUUID().slice(0, 8)}`;
 };
 
 export const createUser = async (
@@ -41,7 +44,7 @@ export const createUser = async (
   password: string,
   country: string,
 ) => {
-  const hashedPassword = await bcrypt.hash(String(password), 15);
+  const hashedPassword = await bcrypt.hash(String(password), 12);
   const userName = await getUserName(firstName);
   const token = Math.floor(Math.random() * 900000) + 100000;
 
@@ -67,7 +70,7 @@ export const createUser = async (
 export const findUserById = async (id: string, excludeAttributes = true) => {
   return await User.findOne({
     where: {
-      id: id,
+      id,
     },
     ...(excludeAttributes && {
       attributes: {
@@ -178,8 +181,8 @@ export const getAllUsers = async (
   return await User.findAll({
     where,
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
         exclude: USER_EXCLUDED_ATTRIBUTES,
@@ -192,7 +195,21 @@ export const getAllUsers = async (
 export const getAllActiveAdminUsers = async () => {
   return await User.findAll({
     where: {
-      role: ROLES.ADMIN,
+      role: {
+        [Op.in]: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
+      },
+      status: USER.ACTIVE,
+    },
+    raw: true,
+    attributes: {
+      exclude: USER_EXCLUDED_ATTRIBUTES,
+    },
+  });
+};
+
+export const getAllActiveUsers = async () => {
+  return await User.findAll({
+    where: {
       status: USER.ACTIVE,
     },
     raw: true,
@@ -232,13 +249,21 @@ export const deleteUser = async (
   reason: string,
   description: string,
 ) => {
-  await User.update({ status: USER.DEACTIVATED }, { where: { id } });
-  await DeletedAccount.create({
-    id: crypto.randomUUID(),
-    userId: id,
-    reason,
-    description,
-  });
+  const t = await sequelize.transaction();
+  try {
+    await User.update(
+      { status: USER.DEACTIVATED },
+      { where: { id }, transaction: t },
+    );
+    await DeletedAccount.create(
+      { id: crypto.randomUUID(), userId: id, reason, description },
+      { transaction: t },
+    );
+    await t.commit();
+  } catch (error) {
+    await t.rollback();
+    throw error;
+  }
 };
 
 export const verifyUserPassword = async (
@@ -248,7 +273,7 @@ export const verifyUserPassword = async (
   return await bcrypt.compare(password, userPassword);
 };
 
-export const checkUserAccountStatus = async (status: string | null) => {
+export const checkUserAccountStatus = (status: string | null) => {
   if (!status) {
     return {
       message: "Your account has been deleted. Please contact support.",
@@ -290,7 +315,7 @@ export const checkUserAccountStatus = async (status: string | null) => {
   };
 };
 
-export const checkUserEmailVerificationStatus = async (
+export const checkUserEmailVerificationStatus = (
   emailVerified: string | null,
 ) => {
   if (!emailVerified) {
@@ -322,22 +347,20 @@ export const getDeletedUser = async (userId: string) => {
   });
 };
 
-export const fetchHomeInstructors = async () => {
-  return await User.findAll({
-    where: {
-      role: ROLES.INSTRUCTOR,
-      status: USER.ACTIVE,
-    },
-    limit: 10,
-    raw: true,
-  });
-};
-
 export const findAllActiveUsers = async () => {
   return await User.findAll({
     where: {
       status: USER.ACTIVE,
     },
+    raw: true,
+    attributes: {
+      exclude: USER_EXCLUDED_ATTRIBUTES,
+    },
+  });
+};
+
+export const findAllUsers = async () => {
+  return await User.findAll({
     raw: true,
     attributes: {
       exclude: USER_EXCLUDED_ATTRIBUTES,

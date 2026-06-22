@@ -15,7 +15,7 @@ export const createReport = async (
   date: string,
   evidenceFile: string | null,
 ) => {
-  const user = await Report.create({
+  return await Report.create({
     id: crypto.randomUUID(),
     userId,
     sessionId: session,
@@ -25,8 +25,6 @@ export const createReport = async (
     evidenceFile,
     status: REPORT.PENDING,
   });
-
-  return user;
 };
 
 export const getUserReports = async (
@@ -61,8 +59,8 @@ export const getUserReports = async (
   const reports = await Report.findAll({
     where,
     order: [["createdAt", "DESC"]],
-    ...(offsetSize && { offset: offsetSize }),
-    ...(newPageSize && { limit: newPageSize }),
+    ...(offsetSize !== undefined && { offset: offsetSize }),
+    ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
       attributes: {
         exclude: REPORT_EXCLUDED_ATTRIBUTES,
@@ -71,56 +69,37 @@ export const getUserReports = async (
     raw: true,
   });
 
+  if (!reports.length) return [];
+
+  const userIds = [...new Set(reports.map((r) => r.userId))];
   const users = await User.findAll({
-    where: {
-      id: {
-        [Op.in]: reports.map((report) => report.userId),
-      },
-    },
-    attributes: {
-      exclude: USER_EXCLUDED_ATTRIBUTES,
-    },
+    where: { id: { [Op.in]: userIds } },
+    attributes: { exclude: USER_EXCLUDED_ATTRIBUTES },
     raw: true,
   });
 
-  const reportsWithUsers = reports.map((report) => {
-    const user = users.find((user) => user.id === report.userId);
-    return {
-      ...report,
-      user,
-    };
-  });
-
-  return reportsWithUsers;
+  return reports.map((report) => ({
+    ...report,
+    user: users.find((u) => u.id === report.userId) || null,
+  }));
 };
 
 export const getReportsById = async (id: string) => {
   const report = await Report.findOne({
     where: { id },
-    attributes: {
-      exclude: REPORT_EXCLUDED_ATTRIBUTES,
-    },
+    attributes: { exclude: REPORT_EXCLUDED_ATTRIBUTES },
     raw: true,
   });
 
-  if (report?.userId) {
-    const user = await User.findOne({
-      where: {
-        id: report?.userId,
-      },
-      attributes: {
-        exclude: USER_EXCLUDED_ATTRIBUTES,
-      },
-      raw: true,
-    });
+  if (!report?.userId) return report;
 
-    return {
-      ...report,
-      user,
-    };
-  }
+  const user = await User.findOne({
+    where: { id: report.userId },
+    attributes: { exclude: USER_EXCLUDED_ATTRIBUTES },
+    raw: true,
+  });
 
-  return report;
+  return { ...report, user };
 };
 
 export const updateReportStatus = async (id: string, status: string) => {

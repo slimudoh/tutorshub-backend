@@ -1,16 +1,7 @@
 import Lesson from "../models/lesson.models";
 import Transaction from "../models/transaction.models";
 import User from "../models/user.models";
-import {
-  CATEGORY,
-  MESSAGE,
-  CURRENCY,
-  LESSON,
-  REPORT,
-  TRANSACTION_TYPE,
-  USER,
-  INSTRUCTOR,
-} from "../utils/constant";
+import { CURRENCY, TRANSACTION_TYPE } from "../utils/constant";
 import Currency from "../models/currency.models";
 import Review from "../models/review.models";
 import Category from "../models/category.models";
@@ -24,23 +15,35 @@ import LessonEnrollment from "../models/lessonEnrollment.models";
 import Instructor from "../models/instructor.models";
 
 export const getAdminOverviewData = async () => {
-  const transactions = await Transaction.count();
-  const enrollees = await LessonEnrollment.count();
-  const reviews = await Review.count();
-  const currencies = await Currency.count({
-    where: {
-      status: CURRENCY.ACTIVE,
-    },
-  });
-  const users = await User.count();
-  const instructors = await Instructor.count();
-  const categories = await Category.count();
-  const lessons = await Lesson.count();
-  const newsletterSubscribers = await Newsletter.count();
-  const pricing = await PricingPlan.count();
-  const messages = await Message.count();
-  const reports = await Report.count();
-  const auditLogs = await AuditLog.count();
+  const [
+    transactions,
+    enrollees,
+    reviews,
+    currencies,
+    users,
+    instructors,
+    categories,
+    lessons,
+    newsletterSubscribers,
+    pricing,
+    messages,
+    reports,
+    auditLogs,
+  ] = await Promise.all([
+    Transaction.count(),
+    LessonEnrollment.count(),
+    Review.count(),
+    Currency.count({ where: { status: CURRENCY.ACTIVE } }),
+    User.count(),
+    Instructor.count(),
+    Category.count(),
+    Lesson.count(),
+    Newsletter.count(),
+    PricingPlan.count(),
+    Message.count(),
+    Report.count(),
+    AuditLog.count(),
+  ]);
 
   return {
     users,
@@ -60,45 +63,36 @@ export const getAdminOverviewData = async () => {
 };
 
 export const getUserOverviewData = async (userId: string) => {
-  const transactions = await Transaction.findAll({
-    where: {
-      userId,
-    },
-  });
+  const lessonIds = await Lesson.findAll({
+    where: { userId },
+    attributes: ["id"],
+    raw: true,
+  }).then((rows) => rows.map((r) => r.id));
 
-  const lesson = await Lesson.count({
-    where: {
-      userId,
-    },
-  });
+  const [lessons, earnings, payouts, payments, enrollees, reviews] =
+    await Promise.all([
+      Lesson.count({ where: { userId } }),
 
-  const enrollees = await LessonEnrollment.count({
-    where: {
-      userId,
-    },
-  });
+      Transaction.count({
+        where: { userId, transactionType: TRANSACTION_TYPE.EARNING },
+      }),
+      Transaction.count({
+        where: { userId, transactionType: TRANSACTION_TYPE.PAYOUT },
+      }),
+      Transaction.count({
+        where: { userId, transactionType: TRANSACTION_TYPE.PAYMENT },
+      }),
 
-  const reviews = await Review.count({
-    where: {
-      userId,
-    },
-  });
+      lessonIds.length
+        ? LessonEnrollment.count({
+            where: { lessonId: { [Op.in]: lessonIds } },
+          })
+        : Promise.resolve(0),
 
-  return {
-    lesson,
-    earnings: transactions.filter(
-      (transactions) =>
-        transactions.transactionType === TRANSACTION_TYPE.EARNING,
-    ).length,
-    payouts: transactions.filter(
-      (transactions) =>
-        transactions.transactionType === TRANSACTION_TYPE.PAYOUT,
-    ).length,
-    payments: transactions.filter(
-      (transactions) =>
-        transactions.transactionType === TRANSACTION_TYPE.PAYMENT,
-    ).length,
-    enrollees,
-    reviews,
-  };
+      lessonIds.length
+        ? Review.count({ where: { lessonId: { [Op.in]: lessonIds } } })
+        : Promise.resolve(0),
+    ]);
+
+  return { lessons, earnings, payouts, payments, enrollees, reviews };
 };

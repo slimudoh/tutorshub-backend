@@ -1,7 +1,7 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
 import { Users } from "../interfaces/user";
-import { createServerError } from "../services/error.services";
+import { createServerError, makeError } from "../services/error.services";
 import {
   addPricingPlan,
   fetchAdminPricingPlans,
@@ -15,14 +15,12 @@ import {
   findSubscriptionPlanById,
   updateSubscriptionAutoRenew,
   updateSubscriptionPlanStatus,
-  createUserSubscription,
   renewSubscriptionPlans,
   sendExpiryNotification,
 } from "../services/pricing.services";
-import { ResponseError } from "../interfaces";
 import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
-import { PRICING, SUBSCRIPTION } from "../utils/constant";
+import { DEFAULT_CURRENCY, PRICING, SUBSCRIPTION } from "../utils/constant";
 import {
   convertMultipleCurrencies,
   convertSingleCurrency,
@@ -30,6 +28,7 @@ import {
   getUserCurrency,
 } from "../services/currency.services";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
+import { paginationHelper, toSlug } from "../utils/formatter";
 
 interface CustomRequest extends Request {
   user: Users | JwtPayload;
@@ -56,6 +55,29 @@ export const getPricingPlans: RequestHandler = async (
   }
 };
 
+export const getPricingPlan: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = request.params;
+
+    const plan = await findPricingPlanById(id);
+
+    if (!plan) {
+      return next(makeError("Plan not found. Please try again later.", 404));
+    }
+
+    response.status(200).json({
+      data: plan,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
 export const getSubscriptionPlans: RequestHandler = async (
   request: Request,
   response: Response,
@@ -65,22 +87,20 @@ export const getSubscriptionPlans: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const userCurrency = await getUserCurrency(request);
 
-    let subscriptionPlans = await findUsersSubscriptionPlans(userId);
+    const [subscriptionPlans, plans] = await Promise.all([
+      findUsersSubscriptionPlans(userId),
+      findAllPricingPlans(false),
+    ]);
 
-    let plans = await findAllPricingPlans(true, false);
+    const convertedPlans = await convertMultipleCurrencies(plans, userCurrency);
 
-    plans = await convertMultipleCurrencies(plans, userCurrency);
-
-    subscriptionPlans.forEach((plan: SubscriptionPlan) => {
-      if (plan.planId !== null) {
-        const pricingPlan = plans.find((p) => p.id === plan.planId);
-        plan.plan = pricingPlan || null;
+    subscriptionPlans.forEach((sub: SubscriptionPlan) => {
+      if (sub.planId !== null) {
+        sub.plan = convertedPlans.find((p) => p.id === sub.planId) ?? null;
       }
     });
 
-    response.status(201).json({
-      data: subscriptionPlans,
-    });
+    response.status(200).json({ data: subscriptionPlans });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -94,58 +114,30 @@ export const getAdminPricingPlans: RequestHandler = async (
 ) => {
   try {
     const { keyword, pageNumber, pageSize, status } = request.query;
-    const newPageNumber = Number(pageNumber);
-    const newPageSize = Number(pageSize);
-    const offsetSize = (newPageNumber - 1) * newPageSize;
-
-    const pricingPlans = await fetchAdminPricingPlans(
-      keyword as string,
-      status as string,
-      offsetSize,
-      newPageSize,
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
     );
 
-    const totalPages = await fetchAdminPricingPlans(
-      keyword as string,
-      status as string,
-    );
+    const [pricingPlans, totalRecords] = await Promise.all([
+      fetchAdminPricingPlans(
+        keyword as string,
+        status as string,
+        offsetSize,
+        newPageSize,
+      ),
+      fetchAdminPricingPlans(
+        keyword as string,
+        status as string,
+      ) as Promise<number>,
+    ]);
 
-    response.status(201).json({
+    response.status(200).json({
       currentPage: newPageNumber,
       pageSize: newPageSize,
-      totalRecords: totalPages,
-      totalPages:
-        typeof totalPages === "number"
-          ? Math.ceil(totalPages / newPageSize)
-          : 0,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
       data: pricingPlans,
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const getPricingPlan: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = request.params;
-
-    const plan = await findPricingPlanById(id);
-
-    if (!plan) {
-      const error = new Error(
-        "Plan not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    response.status(201).json({
-      data: plan,
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -159,65 +151,42 @@ export const reviewAdminPricingPlan: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const userId = (request as CustomRequest).user?.id;
-
     const { id, status } = request.body;
 
-    const plan = await findPricingPlanById(id);
-
-    if (!plan) {
-      const error = new Error(
-        "Plan not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
     if (status !== PRICING.ACTIVATE && status !== PRICING.SUSPEND) {
-      const error = new Error(
-        "Invalid status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(makeError("Invalid status. Please try again later.", 400));
     }
 
-    if (status === PRICING.PENDING) {
-      const error = new Error(
-        "Plan is in PENDING status. You cannot review a pending pricing plan.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    if (plan.status === status) {
-      const error = new Error(
-        "Plan is already in the selected status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    const plan = await findPricingPlanById(id);
+    if (!plan) {
+      return next(makeError("Plan not found. Please try again later.", 404));
     }
 
     const newStatus =
       status === PRICING.ACTIVATE ? PRICING.ACTIVE : PRICING.SUSPENDED;
 
+    if (plan.status === newStatus) {
+      return next(
+        makeError(
+          "Plan is already in the selected status. Please try again later.",
+          400,
+        ),
+      );
+    }
+
     await updatePricingPlanStatus(id, newStatus);
 
-    const targetUser = await findUserById(userId);
+    const reviewer = (request as CustomRequest).user?.id;
 
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(reviewer),
       action: "REVIEW PRICING PLAN",
       oldData: JSON.stringify(plan),
-      newData: JSON.stringify({
-        ...plan,
-        status: newStatus,
-      }),
+      newData: JSON.stringify({ ...plan, status: newStatus }),
       section: "PRICING PLAN",
     });
 
-    response.status(201).json({
-      message: "Plan reviewed successfully.",
-    });
+    response.status(200).json({ message: "Plan reviewed successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -230,81 +199,87 @@ export const createPricingPlans: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const userId = (request as CustomRequest).user?.id;
-
+    const userid = (request as CustomRequest).user?.id;
     const {
       title,
       description,
       amount,
+      amountPerSession,
+      instructorPercentageFee,
+      platformPercentageFee,
       currency,
       billingCycle,
       lessonLimit,
       features,
     } = request.body;
 
-    const existingPlan = await findPlanByName(title);
+    const slug = toSlug(title);
+
+    const [creator, existingPlan, existingBySlug, newCurrency] =
+      await Promise.all([
+        findUserById(userid),
+        findPlanByName(title),
+        findPricingBySlug(slug),
+        findCurrencyById(currency),
+      ]);
 
     if (existingPlan) {
-      const error = new Error(
-        "Plan with this name already exists. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError(
+          "Plan with this name already exists. Please try again later.",
+          400,
+        ),
+      );
     }
 
-    const slug = title.toLowerCase().replace(/\s+/g, "-");
-
-    const existingCategoryBySlug = await findPricingBySlug(slug);
-
-    if (existingCategoryBySlug) {
-      const error = new Error(
-        "Plan with this slug already exists. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingBySlug) {
+      return next(
+        makeError(
+          "Plan with this slug already exists. Please try again later.",
+          400,
+        ),
+      );
     }
-
-    const newCurrency = await findCurrencyById(currency);
 
     if (!newCurrency?.symbol) {
-      const error = new Error(
-        "Currency not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("Currency not found. Please try again later.", 404),
+      );
     }
 
-    const convertedCurrency = await convertSingleCurrency(
-      {
-        amount,
-        currency: newCurrency.symbol,
-      },
-      "USD",
-    );
+    const [convertedPlan, convertedSession] = await Promise.all([
+      convertSingleCurrency(
+        { amount, currency: newCurrency.symbol },
+        DEFAULT_CURRENCY,
+      ),
+      convertSingleCurrency(
+        { amount: amountPerSession, currency: newCurrency.symbol },
+        DEFAULT_CURRENCY,
+      ),
+    ]);
 
     const plan = await addPricingPlan({
       title,
       slug,
       description,
-      amount: convertedCurrency.amount,
-      currency: convertedCurrency.currency,
+      currency: convertedPlan.currency,
+      amount: convertedPlan.amount,
+      amountPerSession: convertedSession.amount,
+      instructorPercentageFee,
+      platformPercentageFee,
       billingCycle,
       lessonLimit,
       features,
     });
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(creator),
       action: "CREATE PRICING PLAN",
       newData: JSON.stringify(plan),
       section: "PRICING PLAN",
     });
 
-    response.status(201).json({
-      message: "Plan created successfully.",
-    });
+    response.status(201).json({ message: "Plan created successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -317,93 +292,89 @@ export const updatePricingPlans: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const userId = (request as CustomRequest).user?.id;
+    const updater = (request as CustomRequest).user?.id;
     const { id } = request.params;
     const {
       title,
       description,
       amount,
+      amountPerSession,
+      instructorPercentageFee,
+      platformPercentageFee,
       currency,
       billingCycle,
       lessonLimit,
       features,
     } = request.body;
 
-    const plan = await findPricingPlanById(id);
+    const slug = toSlug(title);
+
+    const [plan, existingBySlug, existingByName, newCurrency] =
+      await Promise.all([
+        findPricingPlanById(id),
+        findPricingBySlug(slug),
+        findPlanByName(title),
+        findCurrencyById(currency),
+      ]);
 
     if (!plan) {
-      const error = new Error(
-        "Plan not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(makeError("Plan not found. Please try again later.", 404));
     }
 
-    let slug = title.toLowerCase().replace(/\s+/g, "-");
-
-    const existingPlanBySlug = await findPricingBySlug(slug);
-
-    if (existingPlanBySlug && existingPlanBySlug.id !== id) {
-      const error = new Error(
-        `Plan with this slug ${slug} already exists.`,
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingBySlug && existingBySlug.id !== id) {
+      return next(makeError(`Plan with slug "${slug}" already exists.`, 400));
     }
 
-    const existingPlanByName = await findPlanByName(title);
-
-    if (existingPlanByName && existingPlanByName.id !== id) {
-      const error = new Error(
-        "Plan with this name already exists. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    if (existingByName && existingByName.id !== id) {
+      return next(
+        makeError(
+          "Plan with this name already exists. Please try again later.",
+          400,
+        ),
+      );
     }
-
-    const newCurrency = await findCurrencyById(currency);
 
     if (!newCurrency?.symbol) {
-      const error = new Error(
-        "Currency not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("Currency not found. Please try again later.", 404),
+      );
     }
 
-    const convertedCurrency = await convertSingleCurrency(
-      {
-        amount,
-        currency: newCurrency.symbol,
-      },
-      "USD",
-    );
+    const [convertedPlan, convertedSession] = await Promise.all([
+      convertSingleCurrency(
+        { amount, currency: newCurrency.symbol },
+        DEFAULT_CURRENCY,
+      ),
+      convertSingleCurrency(
+        { amount: amountPerSession, currency: newCurrency.symbol },
+        DEFAULT_CURRENCY,
+      ),
+    ]);
 
     const updatedPlan = await updatePricingPlan({
       id,
       title,
       slug,
       description,
-      amount: convertedCurrency.amount,
-      currency: convertedCurrency.currency,
+      currency: convertedPlan.currency,
+      amount: convertedPlan.amount,
+      amountPerSession: convertedSession.amount,
+      instructorPercentageFee,
+      platformPercentageFee,
       billingCycle,
       lessonLimit,
       features,
     });
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(updater),
       action: "UPDATE PRICING PLAN",
       oldData: JSON.stringify(plan),
       newData: JSON.stringify(updatedPlan),
       section: "PRICING PLAN",
     });
 
-    response.status(201).json({
-      message: "Plan updated successfully.",
-    });
+    response.status(200).json({ message: "Plan updated successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -419,22 +390,19 @@ export const autoRenewSubscription = async (
     const userId = (request as CustomRequest).user?.id;
     const { id, autoRenew } = request.body;
 
-    const subscriptionPlan = await findSubscriptionPlanById(id, userId);
+    const [subscriptionPlan, user] = await Promise.all([
+      findSubscriptionPlanById(id, userId),
+      findUserById(userId),
+    ]);
 
     if (!subscriptionPlan) {
-      const error = new Error(
-        "Subscription not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+      return next(
+        makeError("Subscription not found. Please try again later.", 404),
+      );
     }
 
     if (subscriptionPlan.autoRenew === autoRenew) {
-      const error = new Error(
-        "Auto renew is already set to this value.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(makeError("Auto renew is already set to this value.", 400));
     }
 
     const updatedSubscriptionPlan = await updateSubscriptionAutoRenew(
@@ -443,17 +411,15 @@ export const autoRenewSubscription = async (
       autoRenew,
     );
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(user),
       action: "UPDATE SUBSCRIPTION AUTO RENEW",
       oldData: JSON.stringify(subscriptionPlan),
       newData: JSON.stringify(updatedSubscriptionPlan),
       section: "SUBSCRIPTION PLAN",
     });
 
-    response.status(201).json({
+    response.status(200).json({
       message: "Subscription auto renew updated successfully.",
     });
   } catch (err) {
@@ -472,38 +438,31 @@ export const cancelSubscriptionPlans: RequestHandler = async (
 
     const { id, status } = request.body;
 
-    const subscriptionPlan = await findSubscriptionPlanById(id, userId);
-
-    if (!subscriptionPlan) {
-      const error = new Error(
-        "Subscription not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
+    if (status !== SUBSCRIPTION.CANCEL) {
+      return next(makeError("Invalid status. Please try again later.", 400));
     }
 
-    if (status !== SUBSCRIPTION.CANCEL) {
-      const error = new Error(
-        "Invalid status. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+    const [subscriptionPlan, user] = await Promise.all([
+      findSubscriptionPlanById(id, userId),
+      findUserById(userId),
+    ]);
+
+    if (!subscriptionPlan) {
+      return next(
+        makeError("Subscription not found. Please try again later.", 404),
+      );
     }
 
     if (subscriptionPlan.status === SUBSCRIPTION.CANCELED) {
-      const error = new Error(
-        "Subscription is already in the CANCELED status. You cannot cancel a canceled subscription plan.",
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
+      return next(
+        makeError("Subscription is already canceled.", 400), // was 404 — corrected to 400
+      );
     }
 
     await updateSubscriptionPlanStatus(id, userId, SUBSCRIPTION.CANCELED);
 
-    const targetUser = await findUserById(userId);
-
     await createAuditLog({
-      user: JSON.stringify(targetUser),
+      user: JSON.stringify(user),
       action: "CANCEL SUBSCRIPTION PLAN",
       oldData: JSON.stringify(subscriptionPlan),
       newData: JSON.stringify({
@@ -522,80 +481,6 @@ export const cancelSubscriptionPlans: RequestHandler = async (
   }
 };
 
-export const changePricingPlan: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const userId = (request as CustomRequest).user?.id;
-
-    const user = await findUserById(userId);
-
-    if (!user) {
-      const error = new Error(
-        "User not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    const { id } = request.body;
-
-    let subscriptionPlans = await findUsersSubscriptionPlans(userId);
-    let plans = await findAllPricingPlans(true, false);
-    subscriptionPlans.forEach((plan: SubscriptionPlan) => {
-      if (plan.planId !== null) {
-        const pricingPlan = plans.find((p) => p.id === plan.planId);
-        plan.plan = pricingPlan || null;
-      }
-    });
-
-    const activeSubscription = subscriptionPlans.find(
-      (subscription) => subscription.status !== "CANCELED",
-    );
-
-    if (activeSubscription) {
-      const error = new Error(
-        `You have an active subscription to ${activeSubscription.plan?.title} plan. Please cancel it before changing your plan.`,
-      ) as ResponseError;
-      error.statusCode = 400;
-      return next(error);
-    }
-
-    const plan = plans.find(
-      (plan) => plan.id === id && plan.status === PRICING.ACTIVE,
-    );
-
-    if (!plan) {
-      const error = new Error(
-        "Plan not found. Please try again later.",
-      ) as ResponseError;
-      error.statusCode = 404;
-      return next(error);
-    }
-
-    const newSubscriptionPlan = await createUserSubscription(user, plan);
-
-    const targetUser = await findUserById(userId);
-
-    await createAuditLog({
-      user: JSON.stringify(targetUser),
-      action: "CHANGE SUBSCRIPTION PLAN",
-      oldData: activeSubscription ? JSON.stringify(activeSubscription) : "",
-      newData: JSON.stringify(newSubscriptionPlan),
-      section: "SUBSCRIPTION PLAN",
-    });
-
-    response.status(201).json({
-      message: "Subscription plan changed successfully.",
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
 export const checkSubscriptionExpiry = async (
   request: Request,
   response: Response,
@@ -603,8 +488,7 @@ export const checkSubscriptionExpiry = async (
 ) => {
   try {
     await renewSubscriptionPlans();
-
-    response.status(201).json({
+    response.status(200).json({
       message: "Subscription plans renewed successfully.",
     });
   } catch (err) {
@@ -621,7 +505,7 @@ export const sendSubscriptionExpiryNotification = async (
   try {
     await sendExpiryNotification();
 
-    response.status(201).json({
+    response.status(200).json({
       message: "Subscription expiry notifications sent successfully.",
     });
   } catch (err) {
