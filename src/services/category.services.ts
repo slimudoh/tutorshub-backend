@@ -14,7 +14,7 @@ export const fetchActiveCategories = async (keyword: string) => {
 
   return await Category.findAll({
     where: { status: CATEGORY.ACTIVE, ...where },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     raw: true,
   });
 };
@@ -69,7 +69,7 @@ export const getAdminCategories = async (keyword?: string, status?: string) => {
 
   return await Category.findAll({
     where: { ...where },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     raw: true,
   });
 };

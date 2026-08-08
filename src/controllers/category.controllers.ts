@@ -14,14 +14,9 @@ import {
 import { CATEGORY } from "../utils/constant";
 import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { deleteFile } from "../utils/file";
 import { toSlug } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getCategories: RequestHandler = async (
   request: Request,

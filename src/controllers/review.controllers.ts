@@ -16,16 +16,10 @@ import {
 import { findLessonById } from "../services/lesson.services";
 import { findInstructorByUserId } from "../services/instructor.services";
 import { createNotification } from "../services/notification.services";
-import {
-  createAuditLog,
-  createBulkAuditLogs,
-} from "../services/auditLog.services";
+import { createAuditLog } from "../services/auditLog.services";
 import { REVIEW_COMMENT } from "../utils/constant";
 import { paginationHelper } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getAdminReviews: RequestHandler = async (
   request: Request,

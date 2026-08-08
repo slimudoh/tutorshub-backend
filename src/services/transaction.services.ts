@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, Transaction as SequelizeTransaction } from "sequelize";
 import Transaction from "../models/transaction.models";
 import {
   TRANSACTION_EXCLUDED_ATTRIBUTES,
@@ -14,7 +14,7 @@ export const getTransactions = async (
   offsetSize?: number,
   newPageSize?: number,
   userCurrency?: string,
-  excludeAttributes = true,
+  includeUser = true,
 ) => {
   let where = {};
 
@@ -29,10 +29,7 @@ export const getTransactions = async (
   }
 
   if (status) {
-    where = {
-      ...where,
-      status,
-    };
+    where = { ...where, status };
   }
 
   if (!offsetSize && !newPageSize) {
@@ -41,10 +38,10 @@ export const getTransactions = async (
 
   let transactions = await Transaction.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
-    ...(excludeAttributes && {
+    ...(includeUser && {
       include: [
         {
           model: User,
@@ -53,10 +50,19 @@ export const getTransactions = async (
         },
       ],
     }),
-    raw: true,
+    nest: true, // groups nested association fields properly
+    raw: includeUser ? false : true, // can't use raw with include and get nested objects
   });
 
-  return await convertMultipleCurrencies(transactions, userCurrency || "");
+  // When raw is false, Sequelize instances need .get({ plain: true }) for a clean object
+  if (!includeUser) {
+    return await convertMultipleCurrencies(transactions, userCurrency || "");
+  }
+
+  const plainTransactions = transactions.map((t: any) =>
+    t.get({ plain: true }),
+  );
+  return await convertMultipleCurrencies(plainTransactions, userCurrency || "");
 };
 
 export const getUserTransactions = async (
@@ -97,7 +103,7 @@ export const getUserTransactions = async (
       transactionType,
       userId,
     },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     attributes: {
@@ -152,27 +158,35 @@ export const getTransactionByReference = async (
   });
 };
 
-export const createTransaction = async (transactionData: {
-  userId: string;
-  transactionType: string;
-  reference: string;
-  currency: string;
-  amount: number;
-  channel: string;
-  status: string;
-  purpose: string;
-}) => {
-  const transaction = await Transaction.create({
-    id: crypto.randomUUID(),
-    userId: transactionData.userId,
-    transactionType: transactionData.transactionType,
-    reference: transactionData.reference,
-    amount: transactionData.amount,
-    currency: transactionData.currency,
-    channel: transactionData.channel,
-    status: transactionData.status,
-    purpose: transactionData.purpose,
-  });
+export const createTransaction = async (
+  transactionData: {
+    userId: string | null;
+    transactionType: string;
+    reference: string;
+    currency: string;
+    amount: number;
+    channel: string;
+    status: string;
+    purpose: string;
+    lessonId: string | null;
+  },
+  transaction?: SequelizeTransaction,
+) => {
+  const created = await Transaction.create(
+    {
+      id: crypto.randomUUID(),
+      userId: transactionData.userId,
+      transactionType: transactionData.transactionType,
+      reference: transactionData.reference,
+      amount: transactionData.amount,
+      currency: transactionData.currency,
+      channel: transactionData.channel,
+      status: transactionData.status,
+      purpose: transactionData.purpose,
+      lessonId: transactionData.lessonId,
+    },
+    { transaction },
+  );
 
-  return transaction;
+  return created;
 };

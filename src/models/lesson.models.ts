@@ -7,6 +7,8 @@ import Review from "./review.models";
 
 class Lesson extends Model {
   declare id: string | null;
+  declare externalRoomId: string | null;
+  declare externalFriendlyUrl: string | null;
   declare slug: string | null;
   declare userId: string | null;
   declare categoryId: string | null;
@@ -37,6 +39,7 @@ class Lesson extends Model {
   declare wishlist: boolean | null;
   declare enrolled: boolean | null;
   declare enrollees: number | null;
+  declare attendees: number | null;
   declare reviewCount: number | null;
   declare rating: number | null;
   declare seatsLeft: number | null;
@@ -52,6 +55,14 @@ Lesson.init(
       type: DataTypes.UUID,
       allowNull: false,
       primaryKey: true,
+    },
+    externalRoomId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    externalFriendlyUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     slug: {
       type: DataTypes.STRING,

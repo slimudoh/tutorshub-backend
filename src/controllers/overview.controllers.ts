@@ -1,15 +1,10 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
 import {
   getAdminOverviewData,
   getUserOverviewData,
 } from "../services/overview.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getAdminOverview: RequestHandler = async (
   request: Request,

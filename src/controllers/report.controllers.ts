@@ -1,6 +1,4 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
 import {
   createReport,
@@ -8,10 +6,7 @@ import {
   getUserReports,
   updateReportStatus,
 } from "../services/report.services";
-import {
-  createAuditLog,
-  createBulkAuditLogs,
-} from "../services/auditLog.services";
+import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
 import { REPORT } from "../utils/constant";
 import {
@@ -19,17 +14,10 @@ import {
   createNotification,
 } from "../services/notification.services";
 import {
-  sendAdminEmailMessages,
-  sendUserEmailNotification,
-} from "../services/email.services";
-import {
   paginationHelper,
   removeUnderscoreFromString,
 } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 const VALID_REVIEW_STATUSES = new Set([
   REPORT.UNDER_REVIEW,

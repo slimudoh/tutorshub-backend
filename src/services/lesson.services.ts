@@ -6,13 +6,16 @@ import {
   LESSON_PRICE,
   LESSON_ENROLLMENT,
   LESSON_ATTENDANCE,
-  APP_URL,
   REVIEW,
   REVIEW_COMMENT,
   REVIEW_COMMENT_EXCLUDED_ATTRIBUTES,
   DEFAULT_CURRENCY,
+  SUBSCRIPTION,
+  TRANSACTION_TYPE,
+  TRANSACTION_STATUS,
+  ELIGIBLE_FOR_PAYOUT_MINUTE,
 } from "../utils/constant";
-import { findAllUsers, findUserById } from "./user.services";
+import { findAllUsers } from "./user.services";
 import { findAllCategories, findCategoryById } from "./category.services";
 import { format } from "date-fns";
 import { getWishListByLessonId } from "./wishlist.services";
@@ -23,22 +26,26 @@ import {
 } from "./instructor.services";
 import {
   addSubscriptionCredits,
-  findPricingPlanById,
   subtractSubscriptionCredits,
 } from "./pricing.services";
 import {
+  elapsedMinutes,
   lessonDateStartTime,
   minutesLeftFromNow,
-  toSlug,
 } from "../utils/formatter";
 import User from "../models/user.models";
 import { createBulkNotifications } from "./notification.services";
 import LessonAttendance from "../models/lessonAttendance.models";
-import { generateJwtTokenForLessonRoom } from "./auth.services";
 import Review from "../models/review.models";
 import { findUserReviewByLessonId } from "./review.services";
 import ReviewComment from "../models/reviewComment.models";
 import WishList from "../models/wishlist.models";
+import { fetchLessonEnrollees } from "./enrollee.services";
+import SubscriptionPlan from "../models/subscriptionPlan.models";
+import { createTransaction } from "./transaction.services";
+import Transaction from "../models/transaction.models";
+import { createRoom, leaveLessonRoom, updateRoom } from "./room.services";
+import sequelize from "../utils/db";
 
 export const findLessonById = async (
   id: string,
@@ -74,6 +81,34 @@ export const findLessonBySlug = async (
   return getLessonDependencies(lesson, userId);
 };
 
+export const findLessonByDateTime = async (
+  lessonDate: string,
+  startTime: string,
+  excludeId?: string,
+  viewerUserId?: string,
+  includeFullAttributes = false,
+) => {
+  const lesson = await Lesson.findOne({
+    where: {
+      lessonDate,
+      startTime,
+      ...(excludeId && { id: { [Op.ne]: excludeId } }),
+    },
+    ...(!includeFullAttributes && {
+      attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
+    }),
+    raw: true,
+  });
+
+  if (!lesson) return null;
+
+  if (viewerUserId !== undefined) {
+    return getLessonDependencies(lesson, viewerUserId);
+  }
+
+  return lesson;
+};
+
 export const findLessonByTitle = async (title: string) => {
   return await Lesson.findOne({ where: { title }, raw: true });
 };
@@ -101,7 +136,7 @@ export const getAdminLessons = async (
 
   const lessons = await Lesson.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -137,7 +172,7 @@ export const getUserLessons = async (
 
   const lessons = await Lesson.findAll({
     where: { userId, ...where },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -179,7 +214,7 @@ export const getActiveLessons = async (
 
   const lessons = await Lesson.findAll({
     where: baseWhere,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -204,7 +239,7 @@ export const fetchLessonHistory = async (
 ) => {
   const history = await LessonEnrollment.findAll({
     where: { userId },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     raw: true,
@@ -257,7 +292,7 @@ export const fetchLiveLessons = async (
         [Op.lt]: new Date(new Date().setUTCHours(23, 59, 59, 999)),
       },
     },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
     }),
@@ -283,7 +318,7 @@ export const getActiveHomeLessons = async (
       status: LESSON.ACTIVE,
       lessonDate: { [Op.gte]: format(new Date(), "yyyy-MM-dd 00:00:00") },
     },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     limit: 8,
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
@@ -316,7 +351,7 @@ export const fetchLessonsByCategory = async (
 
   const lessons = await Lesson.findAll({
     where: baseWhere,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -350,7 +385,7 @@ export const fetchLessonsByInstructor = async (
 
   const lessons = await Lesson.findAll({
     where: baseWhere,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -368,7 +403,7 @@ export const fetchAllInstructorLessons = async (
 ) => {
   return await Lesson.findAll({
     where: { userId },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
     }),
@@ -376,99 +411,120 @@ export const fetchAllInstructorLessons = async (
   });
 };
 
-export const addLessonInformation = async (
-  userId: string,
-  title: string,
-  category: string,
-  level: string,
-  language: string,
-  duration: string,
-  lateJoinMinutes: string,
-  lessonDate: string,
-  startTime: string,
-  endTime: string,
-  participants: number,
-  description: string,
-  freeLesson: string,
-  lectures: { title: string; description: string }[],
-  seoTitle: string,
-  seoDescription: string,
-  seoTags: string,
-  file: string | null,
-) => {
-  const slug = toSlug(title);
+export const addLessonInformation = async (payload: {
+  userId: string;
+  slug: string;
+  title: string;
+  category: string;
+  level: string;
+  language: string;
+  duration: string;
+  lateJoinMinutes: string;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  participants: number;
+  description: string;
+  freeLesson: string;
+  lectures: { title: string; description: string }[];
+  seoTitle: string;
+  seoDescription: string;
+  seoTags: string;
+  file: string | null;
+}) => {
+  const lessonId = crypto.randomUUID();
+
+  const data = await createRoom(lessonId, payload.slug, payload.participants);
 
   return await Lesson.create({
-    id: crypto.randomUUID(),
-    slug,
-    userId,
-    title,
-    categoryId: category,
-    level,
-    language,
+    id: lessonId,
+    externalRoomId: data.id,
+    externalFriendlyUrl: data.friendly_url,
+    userId: payload.userId,
+    slug: payload.slug,
+    title: payload.title,
+    categoryId: payload.category,
+    level: payload.level,
+    language: payload.language,
     isLive: false,
-    durationMinutes: Number(duration),
-    lateJoinMinutes,
-    lessonDate,
-    startTime,
-    endTime,
-    maxStudents: participants,
-    description,
-    isFree: freeLesson === "true",
+    durationMinutes: Number(payload.duration),
+    lateJoinMinutes: payload.lateJoinMinutes,
+    lessonDate: payload.lessonDate,
+    startTime: payload.startTime,
+    endTime: payload.endTime,
+    maxStudents: payload.participants,
+    description: payload.description,
+    isFree: payload.freeLesson === "true",
     creditsRequired: 1,
-    image: file,
-    lectures: JSON.stringify(lectures),
-    seoTitle,
-    seoDescription,
-    seoTags,
+    image: payload.file,
+    lectures: JSON.stringify(payload.lectures),
+    seoTitle: payload.seoTitle,
+    seoDescription: payload.seoDescription,
+    seoTags: payload.seoTags,
+    roomId: crypto.randomUUID(),
     status: LESSON.ACTIVE,
   });
 };
 
-export const updateLessonInformation = async (
-  id: string,
-  title: string,
-  category: string,
-  level: string,
-  language: string,
-  duration: string,
-  lateJoinMinutes: string,
-  lessonDate: string,
-  startTime: string,
-  endTime: string,
-  participants: number,
-  description: string,
-  freeLesson: string,
-  lectures: { title: string; description: string }[],
-  seoTitle: string,
-  seoDescription: string,
-  seoTags: string,
-  file: string | null,
-) => {
+export const updateLessonInformation = async (payload: {
+  id: string;
+  title: string;
+  category: string;
+  level: string;
+  language: string;
+  duration: string;
+  lateJoinMinutes: string;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  participants: number;
+  description: string;
+  freeLesson: string;
+  lectures: { title: string; description: string }[];
+  seoTitle: string;
+  seoDescription: string;
+  seoTags: string;
+  file: string | null;
+  externalRoomId: string;
+  slug: string;
+}) => {
+  let data = null;
+  if (payload.externalRoomId && payload.slug) {
+    data = await updateRoom(
+      payload.externalRoomId,
+      payload.slug,
+      payload.participants,
+    );
+  } else {
+    data = await createRoom(payload.id, payload.slug, payload.participants);
+  }
+
   return await Lesson.update(
     {
-      title,
-      categoryId: category,
-      level,
-      language,
+      externalRoomId: data.id,
+      externalFriendlyUrl: data.friendly_url,
+      title: payload.title,
+      categoryId: payload.category,
+      level: payload.level,
+      language: payload.language,
       isLive: false,
-      durationMinutes: Number(duration),
-      lateJoinMinutes,
-      lessonDate,
-      startTime,
-      endTime,
-      maxStudents: participants,
-      description,
-      isFree: freeLesson === "true",
+      durationMinutes: Number(payload.duration),
+      lateJoinMinutes: payload.lateJoinMinutes,
+      lessonDate: payload.lessonDate,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      maxStudents: payload.participants,
+      description: payload.description,
+      isFree: payload.freeLesson === "true",
       creditsRequired: 1,
-      image: file,
-      lectures: JSON.stringify(lectures),
-      seoTitle,
-      seoDescription,
-      seoTags,
+      image: payload.file,
+      lectures: JSON.stringify(payload.lectures),
+      seoTitle: payload.seoTitle,
+      seoDescription: payload.seoDescription,
+      seoTags: payload.seoTags,
       status: LESSON.ACTIVE,
     },
-    { where: { id } },
+    { where: { id: payload.id } },
   );
 };
 
@@ -481,17 +537,31 @@ export const fetchAllLessons = async (userId: string) => {
   return getLessonsDependencies(lessons, userId);
 };
 
-export const verifyFreeLessonsByInstructorId = async (userId: string) => {
+export const verifyFreeLessonsByInstructorId = async (
+  userId: string,
+  excludeLessonId?: string,
+) => {
+  const where: any = {
+    userId,
+    isFree: true,
+    status: LESSON.ACTIVE,
+  };
+
+  if (excludeLessonId) {
+    where.id = { [Op.ne]: excludeLessonId };
+  }
+
   const lessons = await Lesson.findAll({
-    where: { userId, isFree: true, status: LESSON.ACTIVE },
+    where,
     attributes: ["id", "lessonDate"],
     raw: true,
   });
 
   return lessons.some(
-    (l) =>
+    (l: Lesson) =>
       l.lessonDate &&
-      new Date(l.lessonDate).getMonth() === new Date().getMonth(),
+      new Date(l.lessonDate).getMonth() === new Date().getMonth() &&
+      new Date(l.lessonDate).getFullYear() === new Date().getFullYear(),
   );
 };
 
@@ -638,13 +708,23 @@ export const getLessonDependencies = async (
     review.reply = reviewComments.find((c) => c.reviewId === review.id) || null;
   });
 
-  const attendance = await LessonAttendance.findAll({
+  // Active participants — currently in the room
+  const activeAttendance = await LessonAttendance.findAll({
     where: { lessonId: lesson.id, status: LESSON_ATTENDANCE.ATTENDED },
     raw: true,
   });
 
+  // All attendance — includes LEFT, used for canReview
+  const allAttendance = await LessonAttendance.findAll({
+    where: {
+      lessonId: lesson.id,
+      status: { [Op.in]: [LESSON_ATTENDANCE.ATTENDED, LESSON_ATTENDANCE.LEFT] },
+    },
+    raw: true,
+  });
+
   const attendanceUsers = users.filter((u) =>
-    attendance.some((a) => a.userId === u.id),
+    activeAttendance.some((a) => a.userId === u.id),
   );
 
   lesson.user = users.find((u) => u.id === lesson.userId) || null;
@@ -657,7 +737,10 @@ export const getLessonDependencies = async (
   lesson.lessonReviews = reviews;
   lesson.reviewCount = reviews.length;
   lesson.rating = calcRating(reviews);
-  lesson.canReview = !!attendanceUsers.find((u) => u.id === userId);
+  // lesson.canReview = allAttendance.some((a) => a.userId === userId);
+  lesson.canReview = allAttendance.some(
+    (a) => a.userId === userId && a.status === LESSON_ATTENDANCE.COMPLETED,
+  );
   lesson.wishlist = false;
   lesson.enrolled = false;
 
@@ -713,10 +796,9 @@ export const sendUserLessonNotification = async () => {
     );
     const checkTimeElapsed = minutesLeftFromNow(lessonDateTime);
 
-    if (
-      checkTimeElapsed === null ||
-      !NOTIFICATION_THRESHOLDS.includes(checkTimeElapsed)
-    ) {
+    const roundedTime = Math.round(checkTimeElapsed ?? -1);
+
+    if (!NOTIFICATION_THRESHOLDS.includes(roundedTime)) {
       continue;
     }
 
@@ -729,7 +811,7 @@ export const sendUserLessonNotification = async () => {
     sendLessonNotification(
       users.filter((u) => enrolledUserIds.has(u.id)),
       lesson,
-      checkTimeElapsed,
+      roundedTime,
     );
   }
 };
@@ -753,92 +835,307 @@ export const findLessonAttendance = (userId: string, lessonId: string) => {
   return LessonAttendance.findOne({ where: { userId, lessonId }, raw: true });
 };
 
-export const joinLessonRoom = async (
-  userId: string,
-  lessonId: string,
-  isHost: boolean,
-  planId: string | null,
-) => {
-  const joinLink = generateJoinCallLink(lessonId, userId);
-
-  let instructorPayout: number | null = null;
-  let platformAmount: number | null = null;
-
-  if (planId) {
-    const plan = await findPricingPlanById(planId);
-    if (
-      plan?.amountPerSession &&
-      plan?.instructorPercentageFee &&
-      plan?.platformPercentageFee
-    ) {
-      instructorPayout =
-        plan.amountPerSession * (plan.instructorPercentageFee / 100);
-      platformAmount =
-        plan.amountPerSession * (plan.platformPercentageFee / 100);
-    }
-  }
-
-  const checkAttendance = await findLessonAttendance(userId, lessonId);
-
-  if (checkAttendance) {
-    await LessonAttendance.update(
-      { joinTime: new Date(), joinLink, status: LESSON_ATTENDANCE.ATTENDED },
-      { where: { userId, lessonId } },
-    );
-  } else {
-    await LessonAttendance.create({
-      id: crypto.randomUUID(),
-      userId,
-      lessonId,
-      joinTime: new Date(),
-      currency: isHost ? null : DEFAULT_CURRENCY,
-      payoutAmount: isHost ? null : instructorPayout,
-      platformAmount: isHost ? null : platformAmount,
-      joinLink,
-      isHost,
-      status: LESSON_ATTENDANCE.ATTENDED,
-    });
-  }
-
-  await Lesson.update({ isLive: true }, { where: { id: lessonId } });
-  return joinLink;
-};
-
-export const leaveLessonRoom = async (
-  userId: string,
-  lessonId: string,
-  attendance: LessonAttendance,
-) => {
-  const durationMinutes = attendance?.joinTime
-    ? minutesLeftFromNow(new Date(attendance.joinTime))
-    : null;
-
-  await LessonAttendance.update(
-    {
-      leaveTime: new Date(),
-      durationMinutes,
-      eligibleForPayout: durationMinutes ? durationMinutes >= 10 : null,
-      status: LESSON_ATTENDANCE.LEFT,
-    },
-    { where: { userId, lessonId } },
-  );
-
-  const remaining = await LessonAttendance.count({
-    where: { lessonId, status: LESSON_ATTENDANCE.ATTENDED },
-  });
-
-  if (remaining === 0) {
-    await Lesson.update({ isLive: false }, { where: { id: lessonId } });
-  }
-
-  return true;
-};
-
-export const generateJoinCallLink = (lessonId: string, userId: string) => {
-  return `${APP_URL}/lessons/room/${lessonId}?userId=${userId}&jwtToken=${generateJwtTokenForLessonRoom(userId, lessonId)}`;
-};
-
 export const calcRating = (reviews: Review[]) =>
   reviews.length
     ? reviews.reduce((acc, r) => acc + Number(r.rating), 0) / reviews.length
     : 0;
+
+export const cleanupStaleAttendance = async () => {
+  const staleAttendances = await LessonAttendance.findAll({
+    where: { status: LESSON_ATTENDANCE.ATTENDED },
+    include: [
+      {
+        model: Lesson,
+        as: "lesson",
+        attributes: ["id", "durationMinutes", "lessonDate", "startTime"],
+      },
+    ],
+  });
+
+  for (const attendance of staleAttendances) {
+    const lesson = attendance.lesson;
+
+    // Skip if missing required data
+    if (
+      !lesson?.durationMinutes ||
+      !attendance.joinTime ||
+      !attendance.userId ||
+      !attendance.lessonId
+    ) {
+      continue;
+    }
+
+    const minutesAttended = minutesLeftFromNow(new Date(attendance.joinTime));
+    if (minutesAttended !== null && minutesAttended >= lesson.durationMinutes) {
+      await leaveLessonRoom(attendance.userId, attendance.lessonId, attendance);
+    }
+  }
+};
+
+export const cleanupEndedLessons = async () => {
+  const now = new Date();
+
+  // Case 1 — lessons that are live but end time has passed
+  const liveLessons = await Lesson.findAll({
+    where: { isLive: true },
+  });
+
+  for (const lesson of liveLessons) {
+    if (!lesson.lessonDate || !lesson.endTime || !lesson.id) continue;
+
+    const lessonEndDateTime = lessonDateStartTime(
+      lesson.endTime,
+      lesson.lessonDate,
+    );
+
+    if (lessonEndDateTime > now) continue;
+
+    // Calculate half-duration threshold for this lesson
+    const halfDuration = lesson.durationMinutes
+      ? lesson.durationMinutes / 2
+      : ELIGIBLE_FOR_PAYOUT_MINUTE;
+
+    // Process each remaining attendee individually to set correct status
+    const remainingAttendances = await LessonAttendance.findAll({
+      where: { lessonId: lesson.id, status: LESSON_ATTENDANCE.ATTENDED },
+      raw: true,
+    });
+
+    for (const a of remainingAttendances) {
+      if (!a.userId || !a.joinTime) continue;
+
+      const studentMinutes = elapsedMinutes(new Date(a.joinTime).toISOString());
+      const isEligible =
+        studentMinutes !== null && studentMinutes >= halfDuration;
+
+      await LessonAttendance.update(
+        {
+          leaveTime: now,
+          durationMinutes: studentMinutes,
+          eligibleForPayout: studentMinutes === null ? null : isEligible,
+          status: isEligible
+            ? LESSON_ATTENDANCE.COMPLETED
+            : LESSON_ATTENDANCE.LEFT,
+        },
+        { where: { userId: a.userId, lessonId: lesson.id } },
+      );
+    }
+
+    await Lesson.update(
+      { isLive: false, status: LESSON.COMPLETED },
+      { where: { id: lesson.id } },
+    );
+
+    // Pay out the instructor for this completed lesson. Isolated per lesson
+    // so one payout failure doesn't stop the remaining lessons in this batch
+    // from being processed (the lesson is already marked completed above and
+    // won't be picked up by this query again).
+    try {
+      await processLessonPayout(lesson);
+    } catch (error) {
+      console.error(
+        `[cleanupEndedLessons] payout failed for lesson ${lesson.id}:`,
+        error,
+      );
+    }
+  }
+
+  // Case 2 — lessons that never went live but end time has passed
+  const staleLessons = await Lesson.findAll({
+    where: {
+      isLive: false,
+      status: LESSON.ACTIVE,
+    },
+  });
+
+  for (const lesson of staleLessons) {
+    if (!lesson.lessonDate || !lesson.endTime || !lesson.id) continue;
+
+    const lessonEndDateTime = lessonDateStartTime(
+      lesson.endTime,
+      lesson.lessonDate,
+    );
+
+    if (lessonEndDateTime > now) continue;
+
+    // Mark lesson as missed
+    await Lesson.update(
+      { status: LESSON.MISSED },
+      { where: { id: lesson.id } },
+    );
+
+    const enrollees = await fetchLessonEnrollees(lesson.id);
+
+    if (!enrollees.length) continue;
+
+    // Fetch all active subscription plans for enrolled users in one query
+    const allSubscriptionPlans = await SubscriptionPlan.findAll({
+      where: {
+        userId: { [Op.in]: enrollees.map((e) => e.userId) },
+        status: SUBSCRIPTION.ACTIVE,
+      },
+      raw: true,
+    });
+
+    // Refund credits to each enrolled student
+    for (const enrollee of enrollees) {
+      if (!enrollee.userId) continue;
+
+      const activeSubscription = allSubscriptionPlans.find(
+        (plan) => plan.userId === enrollee.userId,
+      );
+
+      if (activeSubscription?.id) {
+        await addSubscriptionCredits(enrollee.userId, activeSubscription.id, 1);
+      }
+    }
+
+    // Notify enrolled students
+    await createBulkNotifications(
+      enrollees
+        .filter((enrollee) => enrollee.user?.id !== lesson.userId)
+        .map((enrollee) => ({
+          title: "Lesson Missed",
+          message: `The lesson "${lesson.title}" did not take place. Your credit has been refunded.`,
+          receiverId: enrollee?.user?.id ?? "",
+          senderId: null,
+        })),
+    );
+  }
+};
+
+export const processLessonPayout = async (lesson: Lesson) => {
+  if (!lesson.id || !lesson.userId) return;
+
+  const attendances = await LessonAttendance.findAll({
+    where: {
+      lessonId: lesson.id,
+      isHost: false,
+      status: LESSON_ATTENDANCE.COMPLETED,
+      payoutAmount: { [Op.ne]: null },
+    },
+    raw: true,
+  });
+
+  if (!attendances.length) return;
+
+  // Attendees can be on plans with different currencies, so payouts must be
+  // aggregated and disbursed per currency rather than summed into one total.
+  const totalsByCurrency = new Map<
+    string,
+    { instructorPayout: number; platformAmount: number }
+  >();
+
+  for (const a of attendances) {
+    const currency = a.currency ?? DEFAULT_CURRENCY;
+    const existing = totalsByCurrency.get(currency) ?? {
+      instructorPayout: 0,
+      platformAmount: 0,
+    };
+
+    existing.instructorPayout += Number(a.payoutAmount ?? 0);
+    existing.platformAmount += Number(a.platformAmount ?? 0);
+    totalsByCurrency.set(currency, existing);
+  }
+
+  const t = await sequelize.transaction();
+
+  try {
+    // Lock the lesson row so concurrent cron runs for the same lesson
+    // serialize here instead of racing past the existing-payout check below.
+    await Lesson.findOne({
+      where: { id: lesson.id },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    for (const [currency, totals] of totalsByCurrency) {
+      if (totals.instructorPayout <= 0) continue;
+
+      const earningPurpose = `Lesson Earning for ${lesson.title} (${lesson.id}) [${currency}]`;
+
+      const existingEarning = await Transaction.findOne({
+        where: {
+          userId: lesson.userId,
+          transactionType: TRANSACTION_TYPE.EARNING,
+          purpose: earningPurpose,
+        },
+        transaction: t,
+        raw: true,
+      });
+
+      if (existingEarning) continue;
+
+      await Promise.all([
+        // Instructor earning — confirmed immediately
+        createTransaction(
+          {
+            userId: lesson.userId,
+            transactionType: TRANSACTION_TYPE.EARNING,
+            reference: `EARN-${lesson.id}-${currency}`,
+            currency,
+            amount: totals.instructorPayout,
+            status: TRANSACTION_STATUS.SUCCESSFUL,
+            channel: "system",
+            purpose: earningPurpose,
+            lessonId: lesson.id,
+          },
+          t,
+        ),
+
+        // Instructor payout — pending until disbursed
+        createTransaction(
+          {
+            userId: lesson.userId,
+            transactionType: TRANSACTION_TYPE.PAYOUT,
+            reference: `PAYOUT-${lesson.id}-${currency}`,
+            currency,
+            amount: totals.instructorPayout,
+            status: TRANSACTION_STATUS.PENDING,
+            channel: "system",
+            purpose: `Lesson Payout for ${lesson.title} (${lesson.id}) [${currency}]`,
+            lessonId: lesson.id,
+          },
+          t,
+        ),
+
+        // Platform earning — confirmed immediately
+        createTransaction(
+          {
+            userId: null,
+            transactionType: TRANSACTION_TYPE.EARNING,
+            reference: `PLATFORM-EARN-${lesson.id}-${currency}`,
+            currency,
+            amount: totals.platformAmount,
+            status: TRANSACTION_STATUS.SUCCESSFUL,
+            channel: "system",
+            purpose: `Platform Fee for ${lesson.title} (${lesson.id}) [${currency}]`,
+            lessonId: lesson.id,
+          },
+          t,
+        ),
+
+        // Platform payout — pending until processed
+        createTransaction(
+          {
+            userId: null,
+            transactionType: TRANSACTION_TYPE.PAYOUT,
+            reference: `PLATFORM-PAYOUT-${lesson.id}-${currency}`,
+            currency,
+            amount: totals.platformAmount,
+            status: TRANSACTION_STATUS.PENDING,
+            channel: "system",
+            purpose: `Platform Payout for ${lesson.title} (${lesson.id}) [${currency}]`,
+            lessonId: lesson.id,
+          },
+          t,
+        ),
+      ]);
+    }
+
+    await t.commit();
+  } catch (error) {
+    await t.rollback();
+    throw error;
+  }
+};

@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import User from "../models/user.models";
-import { USER } from "../utils/constant";
+import { TOKEN_EXPIRY, USER } from "../utils/constant";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import BlackListToken from "../models/blackListToken.models";
 import { Users } from "../interfaces/user";
@@ -37,6 +37,7 @@ export const generateAuthToken = async (user: User) => {
       role: user.role,
     },
     TOKEN_SECRET,
+    { expiresIn: TOKEN_EXPIRY },
   );
 
   return token;
@@ -72,18 +73,18 @@ export const verifyToken = async (
   }
 };
 
-export const generateJwtTokenForLessonRoom = (
-  userId: string,
-  lessonId: string,
-) => {
-  return jwt.sign(
-    {
-      id: userId,
-      lessonId,
-    },
-    TOKEN_SECRET,
-  );
-};
+// export const generateJwtTokenForLessonRoom = (
+//   userId: string,
+//   lessonId: string,
+// ) => {
+//   return jwt.sign(
+//     {
+//       id: userId,
+//       lessonId,
+//     },
+//     TOKEN_SECRET,
+//   );
+// };
 
 export const resolveOptionalUserId = async (
   request: Request,

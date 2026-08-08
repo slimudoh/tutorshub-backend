@@ -1,3 +1,5 @@
+export const TOKEN_EXPIRY = "7d";
+
 export const ROLES = {
   USER: "USER",
   INSTRUCTOR: "INSTRUCTOR",
@@ -9,12 +11,11 @@ export const APP_NAME = "TutorsHub";
 
 export const APP_URL = "http://localhost:3000";
 
+export const ADMIN_EMAIL = "slimudoh@hotmail.com";
+
 export const MAX_PARTICIPANT_PER_FREE_LESSON = 100;
 export const MAX_PARTICIPANT_PER_PAID_LESSON = 50;
-
-export const INSTRUCTOR_PERCENTAGE = 70;
-export const PLATFORM_PERCENTAGE = 30;
-export const AMOUNT_PER_LESSON = 5000;
+export const ELIGIBLE_FOR_PAYOUT_MINUTE = 20;
 
 export const AUTH_CONFIG = {
   EMAIL_TOKEN_TTL_MINUTES: 15,
@@ -31,6 +32,8 @@ export const LESSON = {
   ACTIVATE: "ACTIVATE",
   DEACTIVATED: "DEACTIVATED",
   IN_ACTIVE: "IN_ACTIVE",
+  COMPLETED: "COMPLETED",
+  MISSED: "MISSED",
 };
 
 export const USER = {
@@ -126,6 +129,7 @@ export const SUBSCRIPTION = {
   CANCELED: "CANCELED",
   EXPIRED: "EXPIRED",
   CANCEL: "CANCEL",
+  RENEW: "RENEW",
 };
 
 export const LESSON_ENROLLMENT = {
@@ -137,7 +141,7 @@ export const LESSON_ENROLLMENT = {
 export const LESSON_ATTENDANCE = {
   ATTENDED: "ATTENDED",
   LEFT: "LEFT",
-  ABSENT: "ABSENT",
+  COMPLETED: "COMPLETED",
 };
 
 export const LESSON_PRICE = {

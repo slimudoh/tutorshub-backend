@@ -1,6 +1,4 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
 import { findUserById, updateUserRole } from "../services/user.services";
 import { INSTRUCTOR, ROLES, SUBSCRIPTION } from "../utils/constant";
@@ -15,14 +13,7 @@ import {
   getInstructorById,
   fetchHomeInstructors,
 } from "../services/instructor.services";
-import {
-  createAuditLog,
-  createBulkAuditLogs,
-} from "../services/auditLog.services";
-import {
-  sendAdminEmailMessages,
-  sendUserEmailNotification,
-} from "../services/email.services";
+import { createAuditLog } from "../services/auditLog.services";
 import { createNotification } from "../services/notification.services";
 import {
   paginationHelper,
@@ -32,10 +23,7 @@ import {
   findFreePlan,
   findUsersSubscriptionPlans,
 } from "../services/pricing.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 const VALID_INSTRUCTOR_REVIEW_STATUSES = new Set([
   INSTRUCTOR.APPROVED,

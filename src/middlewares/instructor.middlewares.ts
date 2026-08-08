@@ -1,7 +1,5 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
 import { INSTRUCTOR, ROLES } from "../utils/constant";
-import { Users } from "../interfaces/user";
 import {
   checkUserAccountStatus,
   checkUserEmailVerificationStatus,
@@ -9,10 +7,7 @@ import {
 } from "../services/user.services";
 import { getInstructorByUserId } from "../services/instructor.services";
 import { createServerError, makeError } from "../services/error.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 const isInstructor: RequestHandler = async (
   request: Request,

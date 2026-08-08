@@ -37,7 +37,7 @@ export const getUserNotifications = async (
       receiverId: userId,
       isDeleted: false,
     },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {

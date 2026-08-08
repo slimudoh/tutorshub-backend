@@ -43,13 +43,32 @@ export const parseTime = (timeStr: string): Date => {
   return date;
 };
 
-export const elapsedMinutes = (startTimeStr: string): number => {
-  const start = parseTime(startTimeStr);
+export const elapsedMinutes = (
+  startTimeStr: string,
+  lessonDate?: string | Date, // Add optional date parameter
+): number => {
+  let start: Date;
+
+  if (lessonDate) {
+    // Combine date and time safely (handles cross-day perfectly)
+    const dateStr =
+      typeof lessonDate === "string"
+        ? lessonDate
+        : lessonDate.toISOString().split("T")[0];
+
+    // "2023-10-25T23:00:00"
+    start = new Date(`${dateStr}T${startTimeStr}`);
+  } else {
+    // Fallback to old behavior if date isn't provided (for backwards compatibility)
+    start = parseTime(startTimeStr);
+  }
+
   const now = new Date();
-  if (now <= start) return 0;
+
+  if (now < start) return -1; // lesson hasn't started yet
+
   return Math.floor((now.getTime() - start.getTime()) / 60_000);
 };
-
 export const lessonDuration = (value: number): string => {
   if (!value) return "0m";
 
@@ -82,13 +101,16 @@ export const minutesLeftFromNow = (futureDateTime: Date): number | null => {
   return Math.floor(diffMs / (1000 * 60));
 };
 
-export const toSlug = (value: string): string =>
-  value
+export const toSlug = (value: string): string => {
+  const slug = value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+
+  return `${slug}-${Date.now()}`;
+};
 
 export const paginationHelper = (pageNumber: string, pageSize: string) => {
   const newPageNumber = Math.max(1, Number(pageNumber) || 1);

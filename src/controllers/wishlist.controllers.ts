@@ -1,6 +1,4 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
 import {
   createNewWishList,
@@ -9,13 +7,9 @@ import {
   removeLessonFromWishList,
 } from "../services/wishlist.services";
 import { findLessonById } from "../services/lesson.services";
-import WishList from "../models/wishlist.models";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getUserWishList: RequestHandler = async (
   request: Request,

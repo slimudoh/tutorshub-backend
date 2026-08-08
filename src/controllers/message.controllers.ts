@@ -6,32 +6,18 @@ import {
   getMessages,
   updateMessageStatus,
 } from "../services/message.services";
-import { Users } from "../interfaces/user";
-import { JwtPayload } from "jsonwebtoken";
 import { findUserById } from "../services/user.services";
-import {
-  createAuditLog,
-  createBulkAuditLogs,
-} from "../services/auditLog.services";
-import {
-  sendAdminEmailMessages,
-  sendSingleMail,
-  sendUserEmailNotification,
-} from "../services/email.services";
-import { MESSAGE, MAIL_CONFIG } from "../utils/constant";
+import { createAuditLog } from "../services/auditLog.services";
+import { MESSAGE } from "../utils/constant";
 import {
   createAdminNotifications,
-  createBulkNotifications,
   createNotification,
 } from "../services/notification.services";
 import {
   paginationHelper,
   removeUnderscoreFromString,
 } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 const VALID_REVIEW_STATUSES = new Set([
   MESSAGE.RESOLVED,
@@ -63,7 +49,7 @@ export const createGuestMessage: RequestHandler = async (
     ]);
 
     response.status(200).json({
-      message: "Message sent successfully",
+      message: "Message sent successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -105,7 +91,7 @@ export const createUserMessage: RequestHandler = async (
       ),
       createAdminNotifications({
         title: "New Message",
-        message: `New message from ${user.firstName + " " + user.lastName}. Please check the messages section of the admin dashboard for more details.`,
+        message: `New message from ${user.firstName} ${user.lastName}. Please check the messages section of the admin dashboard for more details.`,
         senderId: null,
       }),
       createAuditLog({
@@ -115,6 +101,9 @@ export const createUserMessage: RequestHandler = async (
         section: "MESSAGE",
       }),
     ]);
+
+    // Fixed: missing response
+    response.status(200).json({ message: "Message sent successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);

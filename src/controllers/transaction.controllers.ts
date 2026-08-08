@@ -7,8 +7,6 @@ import {
   getTransactionByReference,
   createTransaction,
 } from "../services/transaction.services";
-import { Users } from "../interfaces/user";
-import { JwtPayload } from "jsonwebtoken";
 import {
   PRICING,
   TRANSACTION_STATUS,
@@ -25,10 +23,7 @@ import { createNotification } from "../services/notification.services";
 import { createBulkAuditLogs } from "../services/auditLog.services";
 import { getUserCurrency } from "../services/currency.services";
 import { paginationHelper } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getPayments: RequestHandler = async (
   request: Request,
@@ -295,6 +290,7 @@ export const changePricingPlan: RequestHandler = async (
         status: TRANSACTION_STATUS.SUCCESSFUL,
         channel: "manual",
         purpose: `Subscription Payment for ${plan.title} plan`,
+        lessonId: null,
       }),
       createUserSubscription(user, plan, autoRenew),
     ]);

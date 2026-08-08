@@ -46,7 +46,7 @@ export const getAllSubscribers = async (
   return await Newsletter.findAll({
     where,
 
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     raw: true,

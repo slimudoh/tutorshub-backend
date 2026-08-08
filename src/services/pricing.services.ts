@@ -19,7 +19,6 @@ export const findAllPricingPlans = async (
   includeFree = true,
   excludeAttributes = true,
 ) => {
-  console.log({ includeFree });
   return await PricingPlan.findAll({
     where: {
       ...(includeFree && { amount: { [Op.gt]: 0 } }),
@@ -28,7 +27,7 @@ export const findAllPricingPlans = async (
     ...(excludeAttributes && {
       attributes: { exclude: PRICING_PLAN_EXCLUDED_ATTRIBUTES },
     }),
-    order: [["createdAt", "ASC"]],
+    order: [["updatedAt", "ASC"]],
     raw: true,
   });
 };
@@ -38,7 +37,7 @@ export const findAllSubscriptionPlans = async () => {
     where: {
       status: SUBSCRIPTION.ACTIVE,
     },
-    order: [["createdAt", "ASC"]],
+    order: [["updatedAt", "ASC"]],
     raw: true,
   });
 };
@@ -48,7 +47,7 @@ export const findUsersSubscriptionPlans = async (userId: string) => {
     where: {
       userId,
     },
-    order: [["status", "ASC"]],
+    order: [["updatedAt", "DESC"]],
     raw: true,
   });
 };
@@ -96,7 +95,7 @@ export const fetchAdminPricingPlans = async (
 
   return await PricingPlan.findAll({
     where: { ...where },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -146,7 +145,6 @@ export const addPricingPlan = async (data: {
 export const updatePricingPlan = async (data: {
   id: string;
   title: string;
-  slug: string;
   description: string;
   currency: string;
   amount: number;
@@ -160,7 +158,6 @@ export const updatePricingPlan = async (data: {
   return await PricingPlan.update(
     {
       title: data.title,
-      slug: data.slug,
       description: data.description,
       currency: data.currency,
       amount: data.amount,
@@ -217,12 +214,23 @@ export const updateUserSubscription = async (
   );
 };
 
+export const renewUserSubscription = async (
+  userId: string,
+  subscriptionId: string,
+  startDate: Date,
+  endDate: Date,
+) => {
+  return await SubscriptionPlan.update(
+    { startDate, endDate, status: SUBSCRIPTION.ACTIVE },
+    { where: { id: subscriptionId, userId, status: SUBSCRIPTION.EXPIRED } },
+  );
+};
+
 export const findSubscriptionPlanById = async (id: string, userId: string) => {
   return await SubscriptionPlan.findOne({
     where: {
       id,
       userId,
-      status: SUBSCRIPTION.ACTIVE,
     },
     raw: true,
   });
@@ -244,15 +252,12 @@ export const updateSubscriptionPlanStatus = async (
   userId: string,
   status: string,
 ) => {
-  return await SubscriptionPlan.update(
-    { status },
-    { where: { id, userId, status: SUBSCRIPTION.ACTIVE } },
-  );
+  return await SubscriptionPlan.update({ status }, { where: { id, userId } });
 };
 
 export const renewSubscriptionPlans = async () => {
   const [subscriptionPlans, freePlan] = await Promise.all([
-    findAllSubscriptionPlans(),
+    findRenewableSubscriptionPlans(),
     findFreePlan(),
   ]);
 
@@ -266,7 +271,14 @@ export const renewSubscriptionPlans = async () => {
     let updateLog = null;
     let statusLog = null;
 
+    const auditBase = {
+      action: "CHANGE SUBSCRIPTION PLAN",
+      oldData: JSON.stringify(subscription),
+      section: "SUBSCRIPTION PLAN",
+    };
+
     if (subscription.autoRenew) {
+      // Renew the subscription for another month
       updateLog = await updateUserSubscription(
         subscription.userId,
         subscription.id,
@@ -274,50 +286,53 @@ export const renewSubscriptionPlans = async () => {
         oneMonthFromNow(),
       );
 
-      // if paid plan and payment failed, expire instead
+      // Only update status for paid plans — free plan status is managed elsewhere
       if (freePlan?.id !== subscription.planId) {
         statusLog = await updateSubscriptionPlanStatus(
           subscription.id,
           subscription.userId,
-          SUBSCRIPTION.EXPIRED,
+          SUBSCRIPTION.ACTIVE, // fixed: renewed means active, not expired
         );
       }
+
+      if (updateLog) {
+        await createAuditLog({
+          ...auditBase,
+          newData: JSON.stringify(updateLog),
+        });
+      }
+
+      if (statusLog) {
+        await createAuditLog({
+          ...auditBase,
+          newData: JSON.stringify(statusLog),
+        });
+      }
     } else {
+      // No auto-renew — mark as expired
       statusLog = await updateSubscriptionPlanStatus(
         subscription.id,
         subscription.userId,
         SUBSCRIPTION.EXPIRED,
       );
-    }
 
-    const auditBase = {
-      action: "CHANGE SUBSCRIPTION PLAN",
-      oldData: JSON.stringify(subscription),
-      section: "SUBSCRIPTION PLAN",
-    };
-
-    if (updateLog) {
-      await createAuditLog({
-        ...auditBase,
-        newData: JSON.stringify(updateLog),
-      });
-    }
-
-    if (statusLog) {
-      await createAuditLog({
-        ...auditBase,
-        newData: JSON.stringify(statusLog),
-      });
+      if (statusLog) {
+        await createAuditLog({
+          ...auditBase,
+          newData: JSON.stringify(statusLog),
+        });
+      }
     }
   }
 };
 
 export const sendExpiryNotification = async () => {
-  const [subscriptionPlans, freePlan, users] = await Promise.all([
+  const [subscriptionPlans, freePlan] = await Promise.all([
     findAllSubscriptionPlans(),
     findFreePlan(),
-    findAllActiveUsers(),
   ]);
+
+  const today = format(new Date(), "yyyy-MM-dd");
 
   for (const subscription of subscriptionPlans) {
     if (!subscription?.id || !subscription?.endDate || !subscription?.userId) {
@@ -334,15 +349,18 @@ export const sendExpiryNotification = async () => {
         "yyyy-MM-dd",
       );
 
-      if (format(new Date(), "yyyy-MM-dd") < notifyDate) continue;
+      // Only send if today exactly matches the notify date
+      if (today !== notifyDate) continue;
 
-      const message = `Your subscription plan will expire in ${daysLeft} days. Please renew your subscription plan to continue using our services.`;
+      const message = `Your subscription plan will expire in ${daysLeft} day${daysLeft === 1 ? "" : "s"}. Please renew your subscription to continue using our services.`;
 
       await createNotification(
         "Subscription Plan Expiry",
         message,
         subscription.userId,
       );
+
+      break; // only one notification per subscription per day
     }
   }
 };
@@ -383,3 +401,13 @@ export const adjustSubscriptionCredits = async (
 
 export const isExpired = (endDate: Date) =>
   format(new Date(), "yyyy-MM-dd") >= format(endDate, "yyyy-MM-dd");
+
+export const findRenewableSubscriptionPlans = async () => {
+  return await SubscriptionPlan.findAll({
+    where: {
+      status: { [Op.in]: [SUBSCRIPTION.ACTIVE, SUBSCRIPTION.EXPIRED] },
+    },
+    order: [["updatedAt", "ASC"]],
+    raw: true,
+  });
+};

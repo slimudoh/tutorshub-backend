@@ -1,6 +1,4 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
 import {
   findLessonById,
@@ -21,43 +19,38 @@ import {
   verifyLessonEnrollment,
   checkSeatAvailability,
   cancelLesson,
-  sendUserLessonNotification,
-  leaveLessonRoom,
-  findLessonAttendance,
-  joinLessonRoom,
   enrolLesson,
+  findLessonByDateTime,
 } from "../services/lesson.services";
 import {
   LESSON,
-  LESSON_ATTENDANCE,
-  MAIL_CONFIG,
   MAX_PARTICIPANT_PER_FREE_LESSON,
   MAX_PARTICIPANT_PER_PAID_LESSON,
   SUBSCRIPTION,
 } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
-import { findUserById, getAllActiveUsers } from "../services/user.services";
+import { findUserById, findAllActiveUsers } from "../services/user.services";
 import { findCategoryBySlug } from "../services/category.services";
-import { sendMultipleMails } from "../services/email.services";
 import { createBulkNotifications } from "../services/notification.services";
-import { resolveOptionalUserId, verifyToken } from "../services/auth.services";
+import { resolveOptionalUserId } from "../services/auth.services";
 import { findInstructorByUserId } from "../services/instructor.services";
 import {
-  elapsedMinutes,
   lessonDateStartTime,
   isPastLesson,
+  minutesLeftFromNow,
   paginationHelper,
+  toSlug,
 } from "../utils/formatter";
 import {
+  addSubscriptionCredits,
   findFreePlan,
   findUsersSubscriptionPlans,
 } from "../services/pricing.services";
 import { differenceInHours } from "date-fns";
 import { fetchLessonEnrollees } from "../services/enrollee.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import SubscriptionPlan from "../models/subscriptionPlan.models";
+import { Op } from "@sequelize/core";
+import { CustomRequest } from "../types/user";
 
 export const getAllLessons: RequestHandler = async (
   request: Request,
@@ -155,7 +148,8 @@ export const reviewInstructorLessons: RequestHandler = async (
     const reviewerId = (request as CustomRequest).user?.id;
     const { id, status } = request.body;
 
-    if (status !== LESSON.ACTIVATE && status !== LESSON.SUSPEND) {
+    const validStatuses = [LESSON.ACTIVATE, LESSON.SUSPEND];
+    if (!validStatuses.includes(status)) {
       return next(makeError("Invalid status. Please try again later.", 400));
     }
 
@@ -164,24 +158,16 @@ export const reviewInstructorLessons: RequestHandler = async (
       findUserById(reviewerId),
     ]);
 
-    if (!lesson) {
+    if (!lesson?.id) {
       return next(makeError("Lesson not found. Please try again later.", 404));
     }
 
-    if (
-      lesson.status === LESSON.SUSPENDED ||
-      lesson.status === LESSON.DEACTIVATED
-    ) {
-      return next(
-        makeError(
-          "Lesson is SUSPENDED or DEACTIVATED. Please contact the admin for information.",
-          400,
-        ),
-      );
-    }
+    const statusMap: Record<string, string> = {
+      [LESSON.ACTIVATE]: LESSON.ACTIVE,
+      [LESSON.SUSPEND]: LESSON.SUSPENDED,
+    };
 
-    const newStatus =
-      status === LESSON.ACTIVATE ? LESSON.ACTIVE : LESSON.IN_ACTIVE;
+    const newStatus = statusMap[status];
 
     if (lesson.status === newStatus) {
       return next(
@@ -192,15 +178,32 @@ export const reviewInstructorLessons: RequestHandler = async (
       );
     }
 
-    const hasFreeLessonThisMonth =
-      await verifyFreeLessonsByInstructorId(reviewerId);
-    if (hasFreeLessonThisMonth && lesson.isFree) {
+    if (
+      status === LESSON.ACTIVATE &&
+      (lesson.status === LESSON.SUSPENDED ||
+        lesson.status === LESSON.DEACTIVATED)
+    ) {
       return next(
         makeError(
-          "You can only create one free lesson per month. Please create a paid lesson instead.",
+          "Lesson is SUSPENDED or DEACTIVATED. Please contact the admin for more information.",
           400,
         ),
       );
+    }
+
+    // Fixed: verifyFreeLessonsByInstructorId expects the Lesson object, not just userId
+    if (status === LESSON.ACTIVATE && lesson.isFree && lesson.userId) {
+      const hasAnotherFreeLessonThisMonth =
+        await verifyFreeLessonsByInstructorId(lesson.userId);
+
+      if (hasAnotherFreeLessonThisMonth) {
+        return next(
+          makeError(
+            "This instructor already has an active free lesson this month. Only one free lesson is allowed per month.",
+            400,
+          ),
+        );
+      }
     }
 
     await updateLessonStatus(id, newStatus);
@@ -212,6 +215,53 @@ export const reviewInstructorLessons: RequestHandler = async (
       newData: JSON.stringify({ ...lesson, status: newStatus }),
       section: "LESSON",
     });
+
+    const shouldRefund =
+      newStatus === LESSON.SUSPENDED || newStatus === LESSON.DEACTIVATED;
+
+    if (shouldRefund) {
+      const enrollees = await fetchLessonEnrollees(lesson.id);
+
+      if (enrollees.length) {
+        const allSubscriptionPlans = await SubscriptionPlan.findAll({
+          where: {
+            userId: { [Op.in]: enrollees.map((e) => e.userId) },
+            status: SUBSCRIPTION.ACTIVE,
+          },
+          raw: true,
+        });
+
+        for (const enrollee of enrollees) {
+          if (!enrollee.userId) continue;
+
+          const activeSubscription = allSubscriptionPlans.find(
+            (plan) => plan.userId === enrollee.userId,
+          );
+
+          if (activeSubscription?.id) {
+            await addSubscriptionCredits(
+              enrollee.userId,
+              activeSubscription.id,
+              1,
+            );
+          }
+        }
+
+        const actionLabel =
+          newStatus === LESSON.SUSPENDED ? "suspended" : "deactivated";
+
+        await createBulkNotifications(
+          enrollees
+            .filter((enrollee) => enrollee.user?.id !== lesson.userId)
+            .map((enrollee) => ({
+              title: "Lesson Cancelled",
+              message: `The lesson "${lesson.title}" has been ${actionLabel}. Your credit has been refunded.`,
+              receiverId: enrollee?.user?.id ?? "",
+              senderId: null,
+            })),
+        );
+      }
+    }
 
     response.status(200).json({ message: "Lesson reviewed successfully." });
   } catch (err) {
@@ -508,8 +558,33 @@ export const submitNewLesson: RequestHandler = async (
       fileName,
     } = request.body;
 
+    const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
+    const slug = toSlug(title);
+
+    const [lessonByDate, existingBySlug] = await Promise.all([
+      findLessonByDateTime(lessonDate, startTime),
+      findLessonBySlug(slug),
+    ]);
+
+    if (existingBySlug) {
+      return next(makeError(`Lesson with slug "${slug}" already exists.`, 400));
+    }
+
+    if (lessonByDate) {
+      return next(
+        makeError("Lesson already exists for this date and time.", 409),
+      );
+    }
+
+    if (lessonDateTime <= new Date()) {
+      return next(
+        makeError("Lesson date and time must be in the future.", 400),
+      );
+    }
+
     const hasFreeLessonThisMonth =
       await verifyFreeLessonsByInstructorId(userId);
+
     if (
       !validateParticipantLimits(
         freeLesson,
@@ -521,30 +596,36 @@ export const submitNewLesson: RequestHandler = async (
       return;
     }
 
-    const [lesson, user, users] = await Promise.all([
-      addLessonInformation(
-        userId,
-        title,
-        category,
-        level,
-        language,
-        duration,
-        lateJoinMinutes,
-        lessonDate,
-        startTime,
-        endTime,
-        participants,
-        description,
-        freeLesson,
-        lectures,
-        seoTitle,
-        seoDescription,
-        seoTags,
-        request.file?.filename ?? fileName,
-      ),
+    const lesson = await addLessonInformation({
+      userId,
+      slug,
+      title,
+      category,
+      level,
+      language,
+      duration,
+      lateJoinMinutes,
+      lessonDate,
+      startTime,
+      endTime,
+      participants,
+      description,
+      freeLesson,
+      lectures,
+      seoTitle,
+      seoDescription,
+      seoTags,
+      file: request.file?.filename ?? fileName,
+    });
+
+    const [user, users] = await Promise.all([
       findUserById(userId),
-      getAllActiveUsers(),
+      findAllActiveUsers(),
     ]);
+
+    if (!user) {
+      return next(makeError("User not found. Please try again later.", 404));
+    }
 
     await Promise.all([
       createBulkNotifications(
@@ -579,6 +660,7 @@ export const submitUpdatedLesson: RequestHandler = async (
 ) => {
   try {
     const userId = (request as CustomRequest).user?.id;
+
     const {
       id,
       title,
@@ -617,8 +699,43 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
+    // 30-minute lock: based on the EXISTING lesson's start time, not the new one
+    if (verifyLesson.startTime && verifyLesson.lessonDate) {
+      const existingLessonDateTime = lessonDateStartTime(
+        verifyLesson.startTime,
+        verifyLesson.lessonDate,
+      );
+      const minutesUntilStart = minutesLeftFromNow(existingLessonDateTime);
+
+      if (minutesUntilStart !== null && minutesUntilStart <= 30) {
+        return next(
+          makeError(
+            "You can no longer update this lesson. Lessons cannot be updated within 30 minutes of the start time.",
+            400,
+          ),
+        );
+      }
+    }
+
+    const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
+
+    if (lessonDateTime <= new Date()) {
+      return next(
+        makeError("Lesson date and time must be in the future.", 400),
+      );
+    }
+
+    const lessonByDate = await findLessonByDateTime(lessonDate, startTime, id);
+
+    if (lessonByDate) {
+      return next(
+        makeError("Lesson already exists for this date and time.", 409),
+      );
+    }
+
     const hasFreeLessonThisMonth =
       await verifyFreeLessonsByInstructorId(userId);
+
     if (
       !validateParticipantLimits(
         freeLesson,
@@ -630,7 +747,7 @@ export const submitUpdatedLesson: RequestHandler = async (
       return;
     }
 
-    const updatedLesson = await updateLessonInformation(
+    const updatedLesson = await updateLessonInformation({
       id,
       title,
       category,
@@ -648,13 +765,19 @@ export const submitUpdatedLesson: RequestHandler = async (
       seoTitle,
       seoDescription,
       seoTags,
-      request.file?.filename ?? fileName,
-    );
+      file: request.file?.filename ?? fileName,
+      externalRoomId: verifyLesson?.externalRoomId || "",
+      slug: verifyLesson?.slug || "",
+    });
 
     const [user, enrollees] = await Promise.all([
       findUserById(userId),
       fetchLessonEnrollees(id),
     ]);
+
+    if (!user) {
+      return next(makeError("User not found. Please try again later.", 404));
+    }
 
     await Promise.all([
       createBulkNotifications(
@@ -850,168 +973,10 @@ export const cancelEnrollment: RequestHandler = async (
     }
 
     await cancelLesson(userId, id, activeSubscription.id);
+
     response.status(200).json({ message: "Lesson cancelled successfully." });
   } catch (err) {
     next(createServerError(err as Error, 500));
-  }
-};
-
-export const lessonJoinRoom: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = request.params;
-    const userId = (request as CustomRequest).user?.id;
-
-    const [checkAttendance, lesson, subscriptionPlans, freePlan] =
-      await Promise.all([
-        findLessonAttendance(userId, id),
-        findLessonById(id, userId),
-        findUsersSubscriptionPlans(userId),
-        findFreePlan(),
-      ]);
-
-    if (checkAttendance?.status === LESSON_ATTENDANCE.ATTENDED) {
-      return next(makeError("You have already joined this lesson.", 400));
-    }
-
-    if (!lesson?.id) {
-      return next(makeError("Lesson not found.", 404));
-    }
-
-    if (!lesson.lessonDate || !lesson.startTime) {
-      return next(makeError("Lesson date or start time not found.", 404));
-    }
-
-    const activeSubscription = subscriptionPlans.find(
-      (plan) => plan.status === SUBSCRIPTION.ACTIVE,
-    );
-
-    const timePassed = elapsedMinutes(lesson.startTime);
-    const canJoin = timePassed <= (lesson.lateJoinMinutes ?? 0);
-    const lessonHasPassed = isPastLesson(lesson.lessonDate, lesson.startTime);
-
-    if (!lessonHasPassed || !canJoin) {
-      return next(makeError("You can no longer join this lesson.", 400));
-    }
-
-    // Host path
-    if (lesson.userId === userId) {
-      const joinLink = await joinLessonRoom(userId, id, true, null);
-      return response.status(200).json({ data: { joinLink, isHost: true } });
-    }
-
-    // Enrolled participant path
-    const alreadyEnrolled = await verifyLessonEnrollment(userId, id);
-    if (alreadyEnrolled) {
-      if (!activeSubscription?.id) {
-        return next(
-          makeError(
-            "You do not have an active subscription. Please subscribe to a plan and try again.",
-            400,
-          ),
-        );
-      }
-      const joinLink = await joinLessonRoom(
-        userId,
-        id,
-        false,
-        activeSubscription.planId,
-      );
-      return response.status(200).json({ data: { joinLink, isHost: false } });
-    }
-
-    // Walk-in participant path — validate seat and subscription before enrolling
-    const availableSeat = await checkSeatAvailability(id);
-    if (!availableSeat) {
-      return next(makeError("No available seat for this lesson.", 400));
-    }
-
-    if (!activeSubscription?.id) {
-      return next(
-        makeError(
-          "You do not have an active subscription. Please subscribe to a plan and try again.",
-          400,
-        ),
-      );
-    }
-
-    if (
-      !activeSubscription.creditsBalance ||
-      activeSubscription.creditsBalance < 1
-    ) {
-      return next(
-        makeError(
-          "You have exhausted your credits for this month. Please upgrade your subscription or top up your credits to take this lesson.",
-          400,
-        ),
-      );
-    }
-
-    if (!lesson.isFree && freePlan?.id === activeSubscription.planId) {
-      return next(
-        makeError(
-          "This is a paid lesson. Please upgrade your subscription to take this lesson.",
-          400,
-        ),
-      );
-    }
-
-    await enrolLesson(userId, id, activeSubscription.id);
-    const joinLink = await joinLessonRoom(
-      userId,
-      id,
-      false,
-      activeSubscription.planId,
-    );
-    response.status(200).json({ data: { joinLink, isHost: false } });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const lessonLeaveRoom: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = request.params;
-    const userId = (request as CustomRequest).user?.id;
-
-    const checkAttendance = await findLessonAttendance(userId, id);
-    if (!checkAttendance) {
-      return next(makeError("You have not joined this lesson yet.", 400));
-    }
-
-    await leaveLessonRoom(userId, id, checkAttendance);
-
-    response.status(200).json({
-      message: "Lesson left successfully.",
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const sendLessonNotification: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    await sendUserLessonNotification();
-
-    response.status(200).json({
-      message: "Lesson notification sent successfully.",
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
   }
 };
 

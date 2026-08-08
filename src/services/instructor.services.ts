@@ -80,8 +80,8 @@ export const updateInstructorNames = async (
   );
 };
 
-export const findInstructorByUserId = async (userId: string) => {
-  return await Instructor.findOne({ where: { userId }, raw: true });
+export const findInstructorByUserId = async (id: string) => {
+  return await Instructor.findOne({ where: { id }, raw: true });
 };
 
 export const getInstructorById = async (
@@ -134,7 +134,7 @@ export const getAllInstructors = async (
 
   const instructors = await Instructor.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -197,7 +197,7 @@ export const fetchActiveInstructors = async (
 
   const instructors = await Instructor.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -256,7 +256,7 @@ export const getInstructorsDependencies = async (instructors: Instructor[]) => {
     }),
     Lesson.findAll({
       where: { userId: { [Op.in]: instructorUserIds } },
-      order: [["createdAt", "DESC"]],
+      order: [["updatedAt", "DESC"]],
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
       raw: true,
     }),
@@ -307,7 +307,7 @@ export const getInstructorDependencies = async (
     Lesson.findAll({
       where: { userId },
       limit: 6,
-      order: [["createdAt", "DESC"]],
+      order: [["updatedAt", "DESC"]],
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
       raw: true,
     }),

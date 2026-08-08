@@ -1,26 +1,18 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import {
   fetchAllCurrencies,
-  fetchNewRates,
   findCurrencyById,
   findAllActiveCurrencies,
   findRateByFromCurrency,
   updateCurrencyStatus,
   updateCurrency,
-  updateAllCurrencies,
-  updateCurrenciesList,
-  addAllCurrencies,
+  updateCurrencyRates,
 } from "../services/currency.services";
 import { createServerError, makeError } from "../services/error.services";
 import { CURRENCY } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { findUserById } from "../services/user.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getCurrencies: RequestHandler = async (
   request: Request,
@@ -96,23 +88,7 @@ export const getNewCurrencyRates: RequestHandler = async (
   next: NextFunction,
 ): Promise<any> => {
   try {
-    let result: any = await fetchNewRates();
-
-    if (!result.success) {
-      return next(makeError(result.message, 500));
-    }
-
-    const rates = result?.data?.rates;
-
-    if (!rates) {
-      return next(makeError("Rates not found. Please try again later", 404));
-    }
-
-    //add new rate ================================================
-    // addAllCurrencies(rates);
-
-    //update new rate ================================================
-    await Promise.all([updateAllCurrencies(rates), updateCurrenciesList()]);
+    await updateCurrencyRates();
 
     response.status(200).json({
       message: "Rates updated successfully.",

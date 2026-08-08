@@ -1,6 +1,4 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import {
   deleteUser,
   findUserById,
@@ -29,10 +27,7 @@ import {
   updateInstructorNames,
 } from "../services/instructor.services";
 import { paginationHelper } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getUsers: RequestHandler = async (
   request: Request,
@@ -92,20 +87,21 @@ export const getUser: RequestHandler = async (
 
     if (activeSubscription?.planId) {
       let pricingPlan = await findPricingPlanById(activeSubscription.planId);
-      const { amount, currency } = await convertSingleCurrency(
-        {
-          amount: pricingPlan?.amount,
-          currency: pricingPlan?.currency,
-        },
-        userCurrency,
-      );
-      const { amount: amountPerSession } = await convertSingleCurrency(
-        {
-          amount: pricingPlan?.amountPerSession,
-          currency: pricingPlan?.currency,
-        },
-        userCurrency,
-      );
+
+      const [{ amount, currency }, { amount: amountPerSession }] =
+        await Promise.all([
+          convertSingleCurrency(
+            { amount: pricingPlan?.amount, currency: pricingPlan?.currency },
+            userCurrency,
+          ),
+          convertSingleCurrency(
+            {
+              amount: pricingPlan?.amountPerSession,
+              currency: pricingPlan?.currency,
+            },
+            userCurrency,
+          ),
+        ]);
 
       if (pricingPlan) {
         pricingPlan.amount = amount;
@@ -118,11 +114,8 @@ export const getUser: RequestHandler = async (
 
     user.subscriptionPlan = activeSubscription ?? null;
 
+    // Fixed: removed duplicate response.status(200).json() call
     response.status(200).json({ data: user });
-
-    response.status(200).json({
-      data: user,
-    });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);
@@ -322,14 +315,16 @@ export const updateProfile: RequestHandler = async (
     const instructor = await findInstructorByUserId(user.id);
 
     if (instructor) {
-      await updateInstructorNames(user.id, firstName, lastName);
-      await createAuditLog({
-        user: JSON.stringify(targetUser),
-        action: "UPDATE INSTRUCTOR PROFILE",
-        oldData: JSON.stringify(instructor),
-        newData: JSON.stringify({ ...instructor, firstName, lastName }),
-        section: "INSTRUCTOR",
-      });
+      await Promise.all([
+        updateInstructorNames(user.id, firstName, lastName),
+        createAuditLog({
+          user: JSON.stringify(targetUser),
+          action: "UPDATE INSTRUCTOR PROFILE",
+          oldData: JSON.stringify(instructor),
+          newData: JSON.stringify({ ...instructor, firstName, lastName }),
+          section: "INSTRUCTOR",
+        }),
+      ]);
     }
 
     const updatedSnapshot = { ...targetUser, ...profileUpdates };

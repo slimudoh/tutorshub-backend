@@ -3,6 +3,7 @@ import sequelize from "../utils/db";
 import { ROLES } from "../utils/constant";
 import DeletedAccount from "./deletedAccount.models";
 import SubscriptionPlan from "./subscriptionPlan.models";
+import LessonAttendance from "./lessonAttendance.models";
 
 class User extends Model {
   declare id: string | null;
@@ -27,6 +28,7 @@ class User extends Model {
   declare tokenExpiryStatus: string | null;
   declare deactivationDetails: DeletedAccount | null;
   declare subscriptionPlan: SubscriptionPlan | null;
+  declare lessonAttendance: LessonAttendance | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }

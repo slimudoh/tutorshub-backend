@@ -16,8 +16,6 @@ import {
   getLessonsByInstructor,
   lessonEnrollment,
   cancelEnrollment,
-  lessonJoinRoom,
-  lessonLeaveRoom,
 } from "../controllers/lesson.controllers";
 import isAuth from "../middlewares/auth.middlewares";
 import isAdmin from "../middlewares/admin.middlewares";
@@ -128,10 +126,6 @@ router.patch(
 router.put("/lesson-enrollment/:id", isAuth, isUser, lessonEnrollment);
 
 router.delete("/lesson-enrollment/:id", isAuth, isUser, cancelEnrollment);
-
-router.put("/lesson-join-room/:id", isAuth, isUser, lessonJoinRoom);
-
-router.delete("/lesson-leave-room/:id", isAuth, isUser, lessonLeaveRoom);
 
 router.get("/:id", getLesson);
 

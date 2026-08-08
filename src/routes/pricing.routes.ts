@@ -10,7 +10,7 @@ import {
   getPricingPlan,
   updatePricingPlans,
   autoRenewSubscription,
-  cancelSubscriptionPlans,
+  reviewSubscriptionPlans,
 } from "../controllers/pricing.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
 import { check } from "express-validator";
@@ -70,13 +70,13 @@ router.patch(
 );
 
 router.patch(
-  "/cancel-subscription-plans",
+  "/review-subscription-plans",
   check("id").notEmpty().withMessage("ID is required."),
   check("status").notEmpty().withMessage("Status is required."),
   Validate,
   isAuth,
   isUser,
-  cancelSubscriptionPlans,
+  reviewSubscriptionPlans,
 );
 
 router.patch(

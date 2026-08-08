@@ -1,6 +1,5 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
+import { UniqueConstraintError } from "sequelize";
 import { createServerError, makeError } from "../services/error.services";
 import {
   addPricingPlan,
@@ -15,12 +14,22 @@ import {
   findSubscriptionPlanById,
   updateSubscriptionAutoRenew,
   updateSubscriptionPlanStatus,
-  renewSubscriptionPlans,
-  sendExpiryNotification,
+  createUserSubscription,
+  renewUserSubscription,
+  oneMonthFromNow,
 } from "../services/pricing.services";
 import { findUserById } from "../services/user.services";
-import { createAuditLog } from "../services/auditLog.services";
-import { DEFAULT_CURRENCY, PRICING, SUBSCRIPTION } from "../utils/constant";
+import {
+  createAuditLog,
+  createBulkAuditLogs,
+} from "../services/auditLog.services";
+import {
+  DEFAULT_CURRENCY,
+  PRICING,
+  SUBSCRIPTION,
+  TRANSACTION_STATUS,
+  TRANSACTION_TYPE,
+} from "../utils/constant";
 import {
   convertMultipleCurrencies,
   convertSingleCurrency,
@@ -29,10 +38,12 @@ import {
 } from "../services/currency.services";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import { paginationHelper, toSlug } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import {
+  createTransaction,
+  getTransactionByReference,
+} from "../services/transaction.services";
+import { createNotification } from "../services/notification.services";
+import { CustomRequest } from "../types/user";
 
 export const getPricingPlans: RequestHandler = async (
   request: Request,
@@ -176,7 +187,9 @@ export const reviewAdminPricingPlan: RequestHandler = async (
 
     await updatePricingPlanStatus(id, newStatus);
 
-    const reviewer = (request as CustomRequest).user?.id;
+    // Fixed: fetch full reviewer object instead of passing just the ID
+    const reviewerId = (request as CustomRequest).user?.id;
+    const reviewer = await findUserById(reviewerId);
 
     await createAuditLog({
       user: JSON.stringify(reviewer),
@@ -292,7 +305,7 @@ export const updatePricingPlans: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const updater = (request as CustomRequest).user?.id;
+    const updaterId = (request as CustomRequest).user?.id;
     const { id } = request.params;
     const {
       title,
@@ -307,22 +320,15 @@ export const updatePricingPlans: RequestHandler = async (
       features,
     } = request.body;
 
-    const slug = toSlug(title);
-
-    const [plan, existingBySlug, existingByName, newCurrency] =
-      await Promise.all([
-        findPricingPlanById(id),
-        findPricingBySlug(slug),
-        findPlanByName(title),
-        findCurrencyById(currency),
-      ]);
+    const [plan, existingByName, newCurrency, updater] = await Promise.all([
+      findPricingPlanById(id),
+      findPlanByName(title),
+      findCurrencyById(currency),
+      findUserById(updaterId),
+    ]);
 
     if (!plan) {
       return next(makeError("Plan not found. Please try again later.", 404));
-    }
-
-    if (existingBySlug && existingBySlug.id !== id) {
-      return next(makeError(`Plan with slug "${slug}" already exists.`, 400));
     }
 
     if (existingByName && existingByName.id !== id) {
@@ -354,7 +360,6 @@ export const updatePricingPlans: RequestHandler = async (
     const updatedPlan = await updatePricingPlan({
       id,
       title,
-      slug,
       description,
       currency: convertedPlan.currency,
       amount: convertedPlan.amount,
@@ -428,17 +433,16 @@ export const autoRenewSubscription = async (
   }
 };
 
-export const cancelSubscriptionPlans: RequestHandler = async (
+export const reviewSubscriptionPlans: RequestHandler = async (
   request: Request,
   response: Response,
   next: NextFunction,
 ) => {
   try {
     const userId = (request as CustomRequest).user?.id;
+    const { id, reference, status } = request.body;
 
-    const { id, status } = request.body;
-
-    if (status !== SUBSCRIPTION.CANCEL) {
+    if (status !== SUBSCRIPTION.CANCEL && status !== SUBSCRIPTION.RENEW) {
       return next(makeError("Invalid status. Please try again later.", 400));
     }
 
@@ -453,61 +457,213 @@ export const cancelSubscriptionPlans: RequestHandler = async (
       );
     }
 
-    if (subscriptionPlan.status === SUBSCRIPTION.CANCELED) {
+    if (status === SUBSCRIPTION.CANCEL) {
+      if (subscriptionPlan.status === SUBSCRIPTION.CANCELED) {
+        return next(makeError("Subscription is already canceled.", 400));
+      }
+
+      await Promise.all([
+        updateSubscriptionPlanStatus(id, userId, SUBSCRIPTION.CANCELED),
+        createAuditLog({
+          user: JSON.stringify(user),
+          action: "CANCEL SUBSCRIPTION PLAN",
+          oldData: JSON.stringify(subscriptionPlan),
+          newData: JSON.stringify({
+            ...subscriptionPlan,
+            status: SUBSCRIPTION.CANCELED,
+          }),
+          section: "SUBSCRIPTION PLAN",
+        }),
+      ]);
+    }
+
+    if (status === SUBSCRIPTION.RENEW) {
+      if (!reference) {
+        return next(
+          makeError(
+            "Transaction reference is required. Please try again later.",
+            400,
+          ),
+        );
+      }
+
+      if (subscriptionPlan.status === SUBSCRIPTION.ACTIVE) {
+        return next(makeError("Subscription is already active.", 400));
+      }
+
+      if (subscriptionPlan.status !== SUBSCRIPTION.EXPIRED) {
+        return next(
+          makeError(
+            "Subscription can only be renewed if it is expired. Please try again later.",
+            400,
+          ),
+        );
+      }
+
+      const plans = await findAllPricingPlans(true, false);
+      const plan = plans.find(
+        (p) => p.id === subscriptionPlan.planId && p.status === PRICING.ACTIVE,
+      );
+
+      if (!plan?.currency || !plan?.amount) {
+        return next(makeError("Plan not found. Please try again later.", 404));
+      }
+
+      const existingTransaction = await getTransactionByReference(reference);
+      if (existingTransaction) {
+        return next(makeError("Transaction already exists.", 409));
+      }
+
+      let transaction;
+      try {
+        [transaction] = await Promise.all([
+          createTransaction({
+            userId,
+            transactionType: TRANSACTION_TYPE.PAYMENT,
+            reference,
+            currency: plan.currency,
+            amount: plan.amount,
+            status: TRANSACTION_STATUS.SUCCESSFUL,
+            channel: "manual",
+            purpose: `Subscription Payment for ${plan.title} plan`,
+            lessonId: null,
+          }),
+          renewUserSubscription(userId, id, new Date(), oneMonthFromNow()),
+        ]);
+      } catch (err) {
+        if (err instanceof UniqueConstraintError) {
+          return next(makeError("Transaction already exists.", 409));
+        }
+        throw err;
+      }
+
+      await Promise.all([
+        createNotification(
+          "Your payment was successful",
+          `Your payment was successfully processed and subscription plan ${plan.title} renewed.`,
+          userId,
+        ),
+        createBulkAuditLogs([
+          {
+            user: JSON.stringify(user),
+            action: "PAYMENT",
+            newData: JSON.stringify(transaction),
+            section: "TRANSACTION",
+          },
+          {
+            user: JSON.stringify(user),
+            action: "RENEW SUBSCRIPTION PLAN",
+            oldData: JSON.stringify(subscriptionPlan),
+            newData: JSON.stringify({
+              ...subscriptionPlan,
+              status: SUBSCRIPTION.ACTIVE,
+            }),
+            section: "SUBSCRIPTION PLAN",
+          },
+        ]),
+      ]);
+    }
+
+    response.status(201).json({
+      message: "Subscription plan updated successfully.",
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const changePricingPlan: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { planId, reference, autoRenew } = request.body;
+    const userId = (request as CustomRequest).user?.id;
+
+    const [user, subscriptionPlans, plans] = await Promise.all([
+      findUserById(userId),
+      findUsersSubscriptionPlans(userId),
+      findAllPricingPlans(true, false),
+    ]);
+
+    if (!user) {
+      return next(makeError("User not found. Please try again later.", 404));
+    }
+
+    subscriptionPlans.forEach((sub: SubscriptionPlan) => {
+      if (sub.planId !== null) {
+        sub.plan = plans.find((p) => p.id === sub.planId) ?? null;
+      }
+    });
+
+    const activeSubscription = subscriptionPlans.find(
+      (sub) => sub.status !== "CANCELED",
+    );
+
+    if (activeSubscription) {
       return next(
-        makeError("Subscription is already canceled.", 400), // was 404 — corrected to 400
+        makeError(
+          `You have an active subscription to ${activeSubscription.plan?.title} plan. Please cancel it before changing your plan.`,
+          400,
+        ),
       );
     }
 
-    await updateSubscriptionPlanStatus(id, userId, SUBSCRIPTION.CANCELED);
+    const plan = plans.find(
+      (p) => p.id === planId && p.status === PRICING.ACTIVE,
+    );
 
-    await createAuditLog({
-      user: JSON.stringify(user),
-      action: "CANCEL SUBSCRIPTION PLAN",
-      oldData: JSON.stringify(subscriptionPlan),
-      newData: JSON.stringify({
-        ...subscriptionPlan,
-        status: SUBSCRIPTION.CANCELED,
+    if (!plan?.currency || !plan?.amount) {
+      return next(makeError("Plan not found. Please try again later.", 404));
+    }
+
+    const existingTransaction = await getTransactionByReference(reference);
+    if (existingTransaction) {
+      return next(makeError("Transaction already exists.", 409));
+    }
+
+    const [transaction, newSubscriptionPlan] = await Promise.all([
+      createTransaction({
+        userId,
+        transactionType: TRANSACTION_TYPE.PAYMENT,
+        reference,
+        currency: plan.currency,
+        amount: plan.amount,
+        status: TRANSACTION_STATUS.SUCCESSFUL,
+        channel: "manual",
+        purpose: `Subscription Payment for ${plan.title} plan`,
+        lessonId: null,
       }),
-      section: "SUBSCRIPTION PLAN",
-    });
+      createUserSubscription(user, plan, autoRenew),
+    ]);
 
-    response.status(201).json({
-      message: "Subscription plan cancelled successfully.",
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
+    await Promise.all([
+      createNotification(
+        "Your payment was successful",
+        `Your payment was successfully processed and subscription plan changed to ${plan.title}.`,
+        userId,
+      ),
+      createBulkAuditLogs([
+        {
+          user: JSON.stringify(user),
+          action: "PAYMENT",
+          newData: JSON.stringify(transaction),
+          section: "TRANSACTION",
+        },
+        {
+          user: JSON.stringify(user),
+          action: "CHANGE SUBSCRIPTION PLAN",
+          newData: JSON.stringify(newSubscriptionPlan),
+          section: "SUBSCRIPTION PLAN",
+        },
+      ]),
+    ]);
 
-export const checkSubscriptionExpiry = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    await renewSubscriptionPlans();
-    response.status(200).json({
-      message: "Subscription plans renewed successfully.",
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const sendSubscriptionExpiryNotification = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    await sendExpiryNotification();
-
-    response.status(200).json({
-      message: "Subscription expiry notifications sent successfully.",
-    });
+    response
+      .status(201)
+      .json({ message: "Subscription plan changed successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);

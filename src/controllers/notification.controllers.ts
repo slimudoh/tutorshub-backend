@@ -1,19 +1,12 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
 import {
   findNotificationById,
   getUserNotifications,
   readAllUserNotifications,
 } from "../services/notification.services";
-import { createAuditLog } from "../services/auditLog.services";
-import { findUserById } from "../services/user.services";
 import { paginationHelper } from "../utils/formatter";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 export const getNotifications: RequestHandler = async (
   request: Request,

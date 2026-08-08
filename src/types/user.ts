@@ -1,3 +1,7 @@
+import { Request } from "express";
+import { JwtPayload } from "jsonwebtoken";
+import { Users } from "../interfaces/user";
+
 export type UserProfileData = {
   avatar: string;
   firstName: string;
@@ -25,3 +29,12 @@ export type UpdateUserProfileData = Partial<{
   address: string;
   country: string;
 }>;
+
+export interface IJwtPayload extends JwtPayload {
+  id: string;
+  role: string;
+}
+
+export interface CustomRequest extends Request {
+  user: Users | JwtPayload;
+}

@@ -11,6 +11,7 @@ import Lesson from "../models/lesson.models";
 import { findAllUsers } from "./user.services";
 import ReviewComment from "../models/reviewComment.models";
 import User from "../models/user.models";
+import { getLessonsDependencies } from "./lesson.services";
 
 export const getReviewById = async (id: string, excludeAttributes = true) => {
   return await Review.findOne({
@@ -38,7 +39,7 @@ export const fetchAdminReviews = async (
 
   const reviews = await Review.findAll({
     where: { lessonId: { [Op.in]: lessonIds } },
-    order: [["createdAt", "DESC"]] as any,
+    order: [["updatedAt", "DESC"]] as any,
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -71,7 +72,7 @@ export const fetchUserReviews = async (
 
   const reviews = await Review.findAll({
     where: { lessonId: { [Op.in]: lessonIds } },
-    order: [["createdAt", "DESC"]] as any,
+    order: [["updatedAt", "DESC"]] as any,
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -86,7 +87,7 @@ export const fetchUserReviews = async (
 export const fetchHomeReviews = async (excludeAttributes = true) => {
   const reviews = await Review.findAll({
     where: { isPublic: true, status: REVIEW.ACTIVE },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     limit: 10,
     ...(excludeAttributes && {
       attributes: { exclude: REVIEW_EXCLUDED_ATTRIBUTES },
@@ -154,7 +155,7 @@ export const fetchReviewsByInstructor = async (
     where: {
       lessonId: { [Op.in]: lessonIds },
     },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -194,7 +195,7 @@ const attachReviewRelations = async (reviews: Review[]) => {
   const lessonIds = [...new Set(reviews.map((r) => r.lessonId))];
   const reviewIds = reviews.map((r) => r.id);
 
-  const [users, lessons, reviewComments] = await Promise.all([
+  let [users, lessons, reviewComments] = await Promise.all([
     User.findAll({
       where: { id: { [Op.in]: userIds } },
       attributes: { exclude: USER_EXCLUDED_ATTRIBUTES },
@@ -202,6 +203,7 @@ const attachReviewRelations = async (reviews: Review[]) => {
     }),
     Lesson.findAll({
       where: { id: { [Op.in]: lessonIds } },
+
       attributes: ["id", "title", "slug", "userId"],
       raw: true,
     }),
@@ -214,6 +216,8 @@ const attachReviewRelations = async (reviews: Review[]) => {
       raw: true,
     }),
   ]);
+
+  lessons = await getLessonsDependencies(lessons);
 
   reviews.forEach((review) => {
     review.user = users.find((u) => u.id === review.userId) || null;

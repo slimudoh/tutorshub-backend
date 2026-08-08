@@ -69,7 +69,7 @@ export const findRateByFromCurrency = async (currency: string) => {
 };
 
 const fetchRate = async (currency: string): Promise<Response> => {
-  return fetch(`https://open.er-api.com/v6/latest/${currency}`);
+  return fetch(`${process.env.CURRENCY_RATE_BASE_URL}/${currency}`);
 };
 
 export const fetchNewRates = async (currency = DEFAULT_CURRENCY) => {
@@ -241,4 +241,22 @@ export const convertMultipleCurrencies = async (
       amount: Number((rate * item.amount).toFixed(2)),
     };
   });
+};
+
+export const updateCurrencyRates = async () => {
+  const result: any = await fetchNewRates();
+
+  if (!result.success) {
+    throw new Error(result.message);
+  }
+
+  const rates = result?.data?.rates;
+
+  if (!rates) {
+    throw new Error("Rates not found. Please try again later.");
+  }
+
+  // await addAllCurrencies(rates);
+
+  await Promise.all([updateAllCurrencies(rates), updateCurrenciesList()]);
 };

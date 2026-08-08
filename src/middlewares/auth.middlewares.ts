@@ -1,17 +1,8 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import BlackListToken from "../models/blackListToken.models";
-import { Users } from "../interfaces/user";
 import { createServerError, makeError } from "../services/error.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
-
-interface IJwtPayload extends JwtPayload {
-  id: string;
-  role: string;
-}
+import { CustomRequest, IJwtPayload } from "../types/user";
 
 const isAuth: RequestHandler = async (
   request: Request,
@@ -42,6 +33,11 @@ const isAuth: RequestHandler = async (
         process.env.TOKEN_SECRET!,
       ) as IJwtPayload;
     } catch (jwtErr) {
+      if (jwtErr instanceof jwt.TokenExpiredError) {
+        return next(
+          makeError("Your session has expired. Please login again.", 401),
+        );
+      }
       if (jwtErr instanceof jwt.JsonWebTokenError) {
         return next(
           makeError("You are not authorized to view this page.", 401),

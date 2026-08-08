@@ -1,17 +1,12 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
 import { ROLES } from "../utils/constant";
-import { Users } from "../interfaces/user";
 import {
   checkUserAccountStatus,
   checkUserEmailVerificationStatus,
   findUserById,
 } from "../services/user.services";
 import { createServerError, makeError } from "../services/error.services";
-
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
+import { CustomRequest } from "../types/user";
 
 const isUser: RequestHandler = async (
   request: Request,

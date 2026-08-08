@@ -58,7 +58,7 @@ export const getUserReports = async (
 
   const reports = await Report.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {

@@ -1,5 +1,7 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../utils/db";
+import Lesson from "./lesson.models";
+import User from "./user.models";
 
 class LessonAttendance extends Model {
   declare id: string | null;
@@ -12,9 +14,10 @@ class LessonAttendance extends Model {
   declare currency: string | null;
   declare payoutAmount: number | null;
   declare platformAmount: number | null;
-  declare joinLink: string | null;
   declare isHost: boolean | null;
   declare status: string | null;
+  declare lesson: Lesson | null;
+  declare user: string | null;
   declare createdAt: Date;
   declare updatedAt: Date;
 }
@@ -60,10 +63,6 @@ LessonAttendance.init(
     },
     platFormAmount: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
-    },
-    joinLink: {
-      type: DataTypes.TEXT,
       allowNull: true,
     },
     isHost: {

@@ -11,10 +11,6 @@ import { createServerError } from "../services/error.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
 
-interface CustomRequest extends Request {
-  user: Users | JwtPayload;
-}
-
 // export const getUserSettings: RequestHandler = async (
 //   request: Request,
 //   response: Response,

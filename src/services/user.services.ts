@@ -180,7 +180,7 @@ export const getAllUsers = async (
 
   return await User.findAll({
     where,
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -198,18 +198,6 @@ export const getAllActiveAdminUsers = async () => {
       role: {
         [Op.in]: [ROLES.ADMIN, ROLES.SUPER_ADMIN],
       },
-      status: USER.ACTIVE,
-    },
-    raw: true,
-    attributes: {
-      exclude: USER_EXCLUDED_ATTRIBUTES,
-    },
-  });
-};
-
-export const getAllActiveUsers = async () => {
-  return await User.findAll({
-    where: {
       status: USER.ACTIVE,
     },
     raw: true,

@@ -138,6 +138,14 @@ export const loginUser: RequestHandler = async (
 
     const token = await generateAuthToken(user);
 
+    await createNotification(
+      "Login successful",
+      `Hi ${user.firstName}, there was a login on your account at ${moment().format(
+        "DD/MM/YYYY HH:mm:ss",
+      )}. If this wasn't you, please contact support immediately.`,
+      user?.id || "",
+    );
+
     response.status(200).json({
       message: "Login successful.",
       data: { token },

@@ -32,8 +32,9 @@ export const submitNewsletter: RequestHandler = async (
       newData: JSON.stringify(newsletter),
       section: "NEWSLETTER",
     });
+
     response.status(200).json({
-      message: ` Report logged successfully. `,
+      message: "You have successfully subscribed to our newsletter.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -93,7 +94,7 @@ export const deleteSubscriber: RequestHandler = async (
     });
 
     response.status(200).json({
-      message: `Subscriber deleted successfully.`,
+      message: "Subscriber deleted successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

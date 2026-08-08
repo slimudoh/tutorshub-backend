@@ -1,6 +1,6 @@
 import { ResponseError } from "../interfaces";
 
-export const createServerError = async (err: Error, status: number) => {
+export const createServerError = (err: Error, status: number) => {
   console.log({ err });
   let message = "Something went wrong. Please try again later.";
   if (err instanceof Error) message = err.message;

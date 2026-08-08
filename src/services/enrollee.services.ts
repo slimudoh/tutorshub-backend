@@ -7,6 +7,7 @@ import LessonEnrollment from "../models/lessonEnrollment.models";
 import Lesson from "../models/lesson.models";
 import { getLessonsDependencies } from "./lesson.services";
 import User from "../models/user.models";
+import LessonAttendance from "../models/lessonAttendance.models";
 
 export const getAdminEnrollees = async (
   keyword?: string,
@@ -36,7 +37,7 @@ export const getAdminEnrollees = async (
 
   const lessons = await Lesson.findAll({
     where: { ...where },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -54,9 +55,20 @@ export const getAdminEnrollees = async (
     raw: true,
   });
 
+  const attendance = await LessonAttendance.findAll({
+    where: {
+      lessonId: { [Op.in]: lessons.map((lesson) => lesson.id) },
+    },
+    raw: true,
+  });
+
   lessons.forEach((lesson) => {
     lesson.enrollees = enrollments.filter(
-      (e) => e.lessonId === lesson.id,
+      (e) => e.lessonId === lesson.id && lesson.userId !== e.userId,
+    ).length;
+
+    lesson.attendees = attendance.filter(
+      (a) => a.lessonId === lesson.id && lesson.userId !== a.userId,
     ).length;
   });
 
@@ -77,7 +89,7 @@ export const getEnrollees = async (
 
   const lessons = await Lesson.findAll({
     where: { ...where, userId },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
     ...(excludeAttributes && {
@@ -95,9 +107,20 @@ export const getEnrollees = async (
     raw: true,
   });
 
+  const attendance = await LessonAttendance.findAll({
+    where: {
+      lessonId: { [Op.in]: lessons.map((lesson) => lesson.id) },
+    },
+    raw: true,
+  });
+
   lessons.forEach((lesson) => {
     lesson.enrollees = enrollments.filter(
-      (e) => e.lessonId === lesson.id,
+      (e) => e.lessonId === lesson.id && lesson.userId !== e.userId,
+    ).length;
+
+    lesson.attendees = attendance.filter(
+      (a) => a.lessonId === lesson.id && lesson.userId !== a.userId,
     ).length;
   });
 
@@ -110,7 +133,7 @@ export const fetchLessonEnrollees = async (
 ) => {
   const enrollees = await LessonEnrollment.findAll({
     where: { lessonId },
-    order: [["createdAt", "DESC"]],
+    order: [["updatedAt", "DESC"]],
     ...(excludeAttributes && {
       attributes: { exclude: ENROLLEE_EXCLUDED_ATTRIBUTES },
     }),
@@ -125,9 +148,29 @@ export const fetchLessonEnrollees = async (
     raw: true,
   });
 
+  const lessonAttendance = await LessonAttendance.findAll({
+    where: { lessonId },
+    raw: true,
+  });
+
   enrollees.forEach((enrollee) => {
-    enrollee.user = users.find((u) => u.id === enrollee.userId) ?? null;
+    const user = users.find((u) => u.id === enrollee.userId) ?? null;
+
+    if (user) {
+      user.lessonAttendance =
+        lessonAttendance.find((a) => a.userId === user.id) || null;
+    }
+
+    enrollee.user = user;
   });
 
   return enrollees;
+};
+
+export const fetchAttendedEnrollees = async (lessonId: string) => {
+  const enrollees = await fetchLessonEnrollees(lessonId);
+
+  return enrollees.filter(
+    (enrollee) => enrollee.user?.lessonAttendance != null,
+  );
 };
