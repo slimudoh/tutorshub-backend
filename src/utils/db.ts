@@ -1,7 +1,4 @@
 import { Sequelize } from "sequelize";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 let DB_NAME = "tutorshub";
 let DB_USER = "root";

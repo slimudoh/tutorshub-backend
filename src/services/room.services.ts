@@ -16,6 +16,47 @@ export const joinLessonRoom = async (
   userInitials: string,
   lessonId: string,
   isHost: boolean,
+  externalRoomId: string,
+) => {
+  const checkAttendance = await findLessonAttendance(userId, lessonId);
+
+  if (checkAttendance) {
+    const tokenResponse = await digitalSambaAxiosInstance.post(
+      `rooms/${externalRoomId}/token`,
+      {
+        ud: userId,
+        u: userName,
+        initials: userInitials,
+        role: isHost ? "moderator" : "attendee",
+      },
+    );
+
+    return {
+      token: tokenResponse.data.token,
+      link: tokenResponse.data.link,
+    };
+  }
+
+  const tokenResponse = await digitalSambaAxiosInstance.post(
+    `rooms/${externalRoomId}/token`,
+    {
+      ud: userId,
+      u: userName,
+      initials: userInitials,
+      role: isHost ? "moderator" : "attendee",
+    },
+  );
+
+  return {
+    token: tokenResponse.data.token,
+    link: tokenResponse.data.link,
+  };
+};
+
+export const activateLessonRoom = async (
+  userId: string,
+  lessonId: string,
+  isHost: boolean,
   planId: string | null,
 ) => {
   const checkAttendance = await findLessonAttendance(userId, lessonId);
@@ -29,20 +70,6 @@ export const joinLessonRoom = async (
     if (isHost) {
       await Lesson.update({ isLive: true }, { where: { id: lessonId } });
     }
-    const tokenResponse = await digitalSambaAxiosInstance.post(
-      `api/v1/rooms/${lessonId}/token`,
-      {
-        ud: userId,
-        u: userName,
-        initials: userInitials,
-        role: isHost ? "moderator" : "attendee",
-      },
-    );
-
-    return {
-      token: tokenResponse.data.token,
-      link: tokenResponse.data.link,
-    };
   }
 
   let instructorPayout: number | null = null;
@@ -76,24 +103,7 @@ export const joinLessonRoom = async (
     status: LESSON_ATTENDANCE.ATTENDED,
   });
 
-  // if (isHost) {
   await Lesson.update({ isLive: true }, { where: { id: lessonId } });
-  // }
-
-  const tokenResponse = await digitalSambaAxiosInstance.post(
-    `api/v1/rooms/${lessonId}/token`,
-    {
-      ud: userId,
-      u: userName,
-      initials: userInitials,
-      role: isHost ? "moderator" : "attendee",
-    },
-  );
-
-  return {
-    token: tokenResponse.data.token,
-    link: tokenResponse.data.link,
-  };
 };
 
 export const leaveLessonRoom = async (
@@ -179,7 +189,7 @@ export const leaveLessonRoom = async (
 
 export const exportRoomChat = async (roomId: string) => {
   const response = await digitalSambaAxiosInstance.get(
-    `api/v1/rooms/${roomId}/chat/export`,
+    `rooms/${roomId}/chat/export`,
   );
 
   return response.data;
@@ -187,28 +197,21 @@ export const exportRoomChat = async (roomId: string) => {
 
 export const exportRoomTranscripts = async (roomId: string) => {
   const response = await digitalSambaAxiosInstance.get(
-    `api/v1/rooms/${roomId}/transcripts/export`,
+    `rooms/${roomId}/transcripts/export`,
   );
 
   return response.data;
 };
 
 export const getRoom = async (roomId: string) => {
-  const response = await digitalSambaAxiosInstance.get(
-    `api/v1/rooms/${roomId}`,
-  );
+  const response = await digitalSambaAxiosInstance.get(`rooms/${roomId}`);
 
   return response.data;
 };
 
-export const createRoom = async (
-  id: string,
-  identifier: string,
-  maxParticipants: number,
-) => {
-  const response = await digitalSambaAxiosInstance.post(`api/v1/rooms`, {
+export const createRoom = async (id: string, maxParticipants: number) => {
+  const response = await digitalSambaAxiosInstance.post(`rooms`, {
     description: "A room for learning.",
-    friendly_url: identifier,
     privacy: "private",
     external_id: id,
     default_role: "attendee",
@@ -216,34 +219,24 @@ export const createRoom = async (
     max_participants: maxParticipants,
   });
 
-  console.log({ response });
-
   return response.data;
 };
 
-export const updateRoom = async (
-  roomId: string,
-  identifier: string,
-  maxParticipants: number,
-) => {
-  const response = await digitalSambaAxiosInstance.patch(
-    `api/v1/rooms/${roomId}`,
-    {
-      description: "A room for learning.",
-      friendly_url: identifier,
-      privacy: "private",
-      default_role: "attendee",
-      roles: ["moderator", "speaker", "attendee"],
-      max_participants: maxParticipants,
-    },
-  );
+export const updateRoom = async (roomId: string, maxParticipants: number) => {
+  const response = await digitalSambaAxiosInstance.patch(`rooms/${roomId}`, {
+    description: "A room for learning.",
+    privacy: "private",
+    default_role: "attendee",
+    roles: ["moderator", "speaker", "attendee"],
+    max_participants: maxParticipants,
+  });
 
   return response.data;
 };
 
 export const getRoomParticipants = async (roomId: string) => {
   const response = await digitalSambaAxiosInstance.get(
-    `api/v1/rooms/${roomId}/participants`,
+    `rooms/${roomId}/participants`,
   );
 
   return response.data;
@@ -251,7 +244,7 @@ export const getRoomParticipants = async (roomId: string) => {
 
 export const startRoomRecording = async (roomId: string) => {
   const response = await digitalSambaAxiosInstance.post(
-    `api/v1/rooms/${roomId}/recordings/start`,
+    `rooms/${roomId}/recordings/start`,
   );
 
   return response.data;
@@ -259,7 +252,7 @@ export const startRoomRecording = async (roomId: string) => {
 
 export const stopRoomRecording = async (roomId: string) => {
   const response = await digitalSambaAxiosInstance.post(
-    `api/v1/rooms/${roomId}/recordings/stop`,
+    `rooms/${roomId}/recordings/stop`,
   );
 
   return response.data;

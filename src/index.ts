@@ -1,4 +1,7 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config({ path: `.env.${process.env.NODE_ENV || "development"}` });
+
 import express from "express";
 import sequelize from "./utils/db";
 import { defineAssociations } from "./models/associations";
@@ -74,7 +77,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true, // RateLimit-* headers
   legacyHeaders: false,
   message: {
-    error: "Too many requests, slow down.",
+    error: "Too many requests, slow down. Please try again later.",
   },
 });
 
@@ -131,13 +134,13 @@ sequelize
     startCronJobs();
 
     await User.sync();
+    await Transaction.sync();
     await BlackListToken.sync({ alter: true });
     await AuditLog.sync({ alter: true });
     await Setting.sync({ alter: true });
     await Lesson.sync({ alter: true });
     await DeletedAccount.sync({ alter: true });
     await Notification.sync({ alter: true });
-    await Transaction.sync({ alter: true });
     await WishList.sync({ alter: true });
     await SubscriptionPlan.sync({ alter: true });
     await PricingPlan.sync({ alter: true });

@@ -194,8 +194,4 @@ export const MAIL_CONFIG = {
   email: "no-reply@one-block.org",
   password: "P8B(8b]z37d[",
   host: "mail.one-block.org",
-  // sender: "hello@companyqat.com",
-  // email: "hello@ribigifts.com",
-  // password: "Summytwe1234)(&2",
-  // host: "mail.ribigifts.com",
 };

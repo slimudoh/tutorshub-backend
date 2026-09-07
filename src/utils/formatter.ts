@@ -47,21 +47,11 @@ export const elapsedMinutes = (
   startTimeStr: string,
   lessonDate?: string | Date, // Add optional date parameter
 ): number => {
-  let start: Date;
-
-  if (lessonDate) {
-    // Combine date and time safely (handles cross-day perfectly)
-    const dateStr =
-      typeof lessonDate === "string"
-        ? lessonDate
-        : lessonDate.toISOString().split("T")[0];
-
-    // "2023-10-25T23:00:00"
-    start = new Date(`${dateStr}T${startTimeStr}`);
-  } else {
-    // Fallback to old behavior if date isn't provided (for backwards compatibility)
-    start = parseTime(startTimeStr);
-  }
+  // startTimeStr is "hh:mm AM/PM", so combine it onto lessonDate via parseTime
+  // rather than string-concatenating into `new Date()`, which yields Invalid Date.
+  const start = lessonDate
+    ? lessonDateStartTime(startTimeStr, new Date(lessonDate))
+    : parseTime(startTimeStr);
 
   const now = new Date();
 

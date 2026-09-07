@@ -434,7 +434,7 @@ export const addLessonInformation = async (payload: {
 }) => {
   const lessonId = crypto.randomUUID();
 
-  const data = await createRoom(lessonId, payload.slug, payload.participants);
+  const data = await createRoom(lessonId, payload.participants);
 
   return await Lesson.create({
     id: lessonId,
@@ -490,13 +490,9 @@ export const updateLessonInformation = async (payload: {
 }) => {
   let data = null;
   if (payload.externalRoomId && payload.slug) {
-    data = await updateRoom(
-      payload.externalRoomId,
-      payload.slug,
-      payload.participants,
-    );
+    data = await updateRoom(payload.externalRoomId, payload.participants);
   } else {
-    data = await createRoom(payload.id, payload.slug, payload.participants);
+    data = await createRoom(payload.id, payload.participants);
   }
 
   return await Lesson.update(
@@ -544,7 +540,6 @@ export const verifyFreeLessonsByInstructorId = async (
   const where: any = {
     userId,
     isFree: true,
-    status: LESSON.ACTIVE,
   };
 
   if (excludeLessonId) {

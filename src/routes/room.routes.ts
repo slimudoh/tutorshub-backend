@@ -6,11 +6,19 @@ import {
   leaveLessonLectureRoom,
   exportLessonRoomChat,
   exportLessonRoomTranscripts,
+  activateLessonLectureRoom,
 } from "../controllers/room.controllers";
 
 const router = Router();
 
 router.put("/lesson-join-room/:id", isAuth, isUser, joinLessonLectureRoom);
+
+router.put(
+  "/lesson-activate-room/:id",
+  isAuth,
+  isUser,
+  activateLessonLectureRoom,
+);
 
 router.delete("/lesson-leave-room/:id", isAuth, isUser, leaveLessonLectureRoom);
 

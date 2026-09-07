@@ -16,6 +16,7 @@ import {
 } from "../services/pricing.services";
 import { CustomRequest } from "../types/user";
 import {
+  activateLessonRoom,
   exportRoomChat,
   exportRoomTranscripts,
   getRoom,
@@ -49,7 +50,22 @@ export const joinLessonLectureRoom: RequestHandler = async (
       return next(makeError("Lesson date or start time not found.", 404));
     }
 
+    if (!lesson.externalRoomId) {
+      return next(makeError("Lesson room not found.", 404));
+    }
+
     const isInstructor = lesson.userId === userId;
+
+    const timePassed = elapsedMinutes(lesson.startTime, lesson.lessonDate);
+    const lateJoinWindow =
+      lesson.lateJoinMinutes ?? lesson.durationMinutes ?? 60;
+    const hasExpired = timePassed > lateJoinWindow;
+
+    if (hasExpired) {
+      return next(
+        makeError("The join window for this lesson has closed.", 400),
+      );
+    }
 
     if (
       checkAttendance?.status === LESSON_ATTENDANCE.ATTENDED ||
@@ -61,7 +77,7 @@ export const joinLessonLectureRoom: RequestHandler = async (
         `${user?.firstName?.[0]}${user?.lastName?.[0]}`,
         id,
         isInstructor,
-        null,
+        lesson.externalRoomId,
       );
 
       return response.status(200).json({
@@ -82,7 +98,7 @@ export const joinLessonLectureRoom: RequestHandler = async (
         `${user?.firstName?.[0]}${user?.lastName?.[0]}`,
         id,
         true,
-        null,
+        lesson.externalRoomId,
       );
       return response.status(200).json({
         data: {
@@ -95,31 +111,13 @@ export const joinLessonLectureRoom: RequestHandler = async (
       });
     }
 
-    const timePassed = elapsedMinutes(lesson.startTime);
-
-    const lateJoinWindow =
-      lesson.lateJoinMinutes ?? lesson.durationMinutes ?? 60;
-    const canJoin = timePassed >= 0 && timePassed <= lateJoinWindow;
-
-    if (!canJoin) {
-      if (timePassed < 0) {
-        return next(makeError("This lesson has not started yet.", 400));
-      }
-      return next(
-        makeError("The join window for this lesson has closed.", 400),
-      );
+    if (timePassed < 0) {
+      return next(makeError("This lesson has not started yet.", 400));
     }
 
     if (!lesson.userId) {
       return next(makeError("Lesson instructor not found.", 404));
     }
-
-    // const instructorAttendance = await findLessonAttendance(lesson.userId, id);
-    // if (instructorAttendance?.status !== LESSON_ATTENDANCE.ATTENDED) {
-    //   return next(
-    //     makeError("Waiting for instructor to start the session.", 403),
-    //   );
-    // }
 
     const activeSubscription = subscriptionPlans.find(
       (plan) => plan.status === SUBSCRIPTION.ACTIVE,
@@ -136,13 +134,16 @@ export const joinLessonLectureRoom: RequestHandler = async (
         );
       }
 
+      // activeSubscription.planId,
+
       const data = await joinLessonRoom(
         userId,
         `${user?.firstName} ${user?.lastName}`,
         `${user?.firstName?.[0]}${user?.lastName?.[0]}`,
         id,
         false,
-        activeSubscription.planId,
+
+        lesson.externalRoomId,
       );
       return response.status(200).json({
         data: {
@@ -190,6 +191,8 @@ export const joinLessonLectureRoom: RequestHandler = async (
       );
     }
 
+    // activeSubscription.planId,
+
     await enrolLesson(userId, id, activeSubscription.id);
     const data = await joinLessonRoom(
       userId,
@@ -197,7 +200,7 @@ export const joinLessonLectureRoom: RequestHandler = async (
       `${user?.firstName?.[0]}${user?.lastName?.[0]}`,
       id,
       false,
-      activeSubscription.planId,
+      lesson.externalRoomId,
     );
 
     return response.status(200).json({
@@ -208,6 +211,65 @@ export const joinLessonLectureRoom: RequestHandler = async (
         link: data.link,
         token: data.token,
       },
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const activateLessonLectureRoom: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = request.params;
+    const userId = (request as CustomRequest).user?.id;
+
+    const [user, checkAttendance, lesson, subscriptionPlans, freePlan] =
+      await Promise.all([
+        findUserById(userId),
+        findLessonAttendance(userId, id),
+        findLessonById(id, userId),
+        findUsersSubscriptionPlans(userId),
+        findFreePlan(),
+      ]);
+
+    if (!lesson?.id) {
+      return next(makeError("Lesson not found.", 404));
+    }
+
+    const isInstructor = lesson.userId === userId;
+
+    if (
+      checkAttendance?.status === LESSON_ATTENDANCE.ATTENDED ||
+      checkAttendance?.status === LESSON_ATTENDANCE.LEFT
+    ) {
+      await activateLessonRoom(userId, id, isInstructor, null);
+    }
+
+    if (isInstructor) {
+      await activateLessonRoom(userId, id, true, null);
+    }
+
+    const activeSubscription = subscriptionPlans.find(
+      (plan) => plan.status === SUBSCRIPTION.ACTIVE,
+    );
+
+    if (!activeSubscription?.id) {
+      return next(
+        makeError(
+          "You do not have an active subscription. Please subscribe to a plan and try again.",
+          400,
+        ),
+      );
+    }
+
+    await activateLessonRoom(userId, id, false, activeSubscription.planId);
+
+    response.status(200).json({
+      message: "Lesson activated successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
