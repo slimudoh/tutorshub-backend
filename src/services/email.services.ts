@@ -1,9 +1,9 @@
 import { APP_NAME, APP_URL, MAIL_CONFIG } from "../utils/constant";
 import transporter from "../utils/mailer";
-import { Options } from "nodemailer/lib/mailer";
+import { SendMailOptions } from "nodemailer";
 import { getAllActiveAdminUsers } from "./user.services";
 
-type ExtendedOptions = Options & {
+type ExtendedOptions = SendMailOptions & {
   template: string;
   context: Record<string, unknown>;
 };
