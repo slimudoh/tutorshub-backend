@@ -9,6 +9,7 @@ class Rate extends Model {
   declare createdAt: Date;
   declare updatedAt: Date;
 }
+//
 
 Rate.init(
   {
