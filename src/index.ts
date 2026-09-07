@@ -101,6 +101,14 @@ app.use(cors(corsOptions));
 app.use(express.static(path.join(__dirname, "images")));
 
 app.set("trust proxy", 1);
+
+app.get("/", (request, response) => {
+  response.status(200).json({
+    status: "success",
+    message: "API is up and running!",
+  });
+});
+
 app.use("/api/v1", apiLimiter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
