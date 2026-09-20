@@ -18,10 +18,13 @@ import {
   verifyFreeLessonsByInstructorId,
   verifyLessonEnrollment,
   checkSeatAvailability,
+  checkEnrollmentTimeClash,
   cancelLesson,
+  cancelLessonEnrollments,
   enrolLesson,
   findLessonByDateTime,
 } from "../services/lesson.services";
+
 import {
   LESSON,
   MAX_PARTICIPANT_PER_FREE_LESSON,
@@ -132,6 +135,50 @@ export const reviewAdminLessons: RequestHandler = async (
       section: "LESSON",
     });
 
+    if (newStatus === LESSON.SUSPENDED && lesson.id) {
+      const enrollees = await fetchLessonEnrollees(lesson.id);
+
+      if (enrollees.length) {
+        // Cancel all active enrollments for this lesson
+        await cancelLessonEnrollments(lesson.id);
+
+        const allSubscriptionPlans = await SubscriptionPlan.findAll({
+          where: {
+            userId: { [Op.in]: enrollees.map((e) => e.userId) },
+            status: SUBSCRIPTION.ACTIVE,
+          },
+          raw: true,
+        });
+
+        for (const enrollee of enrollees) {
+          if (!enrollee.userId) continue;
+
+          const activeSubscription = allSubscriptionPlans.find(
+            (plan) => plan.userId === enrollee.userId,
+          );
+
+          if (activeSubscription?.id) {
+            await addSubscriptionCredits(
+              enrollee.userId,
+              activeSubscription.id,
+              1,
+            );
+          }
+        }
+
+        await createBulkNotifications(
+          enrollees
+            .filter((enrollee) => enrollee.user?.id !== lesson.userId)
+            .map((enrollee) => ({
+              title: "Lesson Cancelled",
+              message: `The lesson "${lesson.title}" has been suspended. Your credit has been refunded.`,
+              receiverId: enrollee?.user?.id ?? "",
+              senderId: null,
+            })),
+        );
+      }
+    }
+
     response.status(200).json({ message: "Lesson reviewed successfully." });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -223,6 +270,9 @@ export const reviewInstructorLessons: RequestHandler = async (
       const enrollees = await fetchLessonEnrollees(lesson.id);
 
       if (enrollees.length) {
+        // Cancel all active enrollments for this lesson
+        await cancelLessonEnrollments(lesson.id);
+
         const allSubscriptionPlans = await SubscriptionPlan.findAll({
           where: {
             userId: { [Op.in]: enrollees.map((e) => e.userId) },
@@ -562,7 +612,7 @@ export const submitNewLesson: RequestHandler = async (
     const slug = toSlug(title);
 
     const [lessonByDate, existingBySlug] = await Promise.all([
-      findLessonByDateTime(lessonDate, startTime),
+      findLessonByDateTime(lessonDate, startTime, endTime),
       findLessonBySlug(slug),
     ]);
 
@@ -725,7 +775,12 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
-    const lessonByDate = await findLessonByDateTime(lessonDate, startTime, id);
+    const lessonByDate = await findLessonByDateTime(
+      lessonDate,
+      startTime,
+      endTime,
+      id,
+    );
 
     if (lessonByDate) {
       return next(
@@ -864,6 +919,24 @@ export const lessonEnrollment: RequestHandler = async (
 
     if (isPastLesson(lesson.lessonDate, lesson.startTime)) {
       return next(makeError("You can no longer join this lesson.", 400));
+    }
+
+    if (lesson.endTime) {
+      const hasClash = await checkEnrollmentTimeClash(userId, {
+        id: lesson.id!,
+        lessonDate: lesson.lessonDate,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+      });
+
+      if (hasClash) {
+        return next(
+          makeError(
+            "You are already enrolled in another lesson that overlaps with this time slot.",
+            409,
+          ),
+        );
+      }
     }
 
     const [subscriptionPlans, freePlan] = await Promise.all([

@@ -6,8 +6,8 @@ import {
   getAllActiveCurrencies,
   getCurrencies,
   getCurrencyDetails,
-  getNewCurrencyRates,
   reviewCurrencies,
+  getNewCurrencyRates,
 } from "../controllers/currency.controllers";
 import { check } from "express-validator";
 import Validate from "../middlewares/validate.middlewares";
@@ -15,6 +15,8 @@ import Validate from "../middlewares/validate.middlewares";
 const router = Router();
 
 router.get("/", isAuth, isAdmin, getCurrencies);
+
+router.get("/get-new-currency-rates", getNewCurrencyRates);
 
 router.get("/active-currencies", getAllActiveCurrencies);
 

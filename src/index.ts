@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import pc from "picocolors";
 
 dotenv.config({ path: `.env.${process.env.NODE_ENV || "development"}` });
 
@@ -12,7 +13,7 @@ import {
   errorHandler,
 } from "./middlewares/error.middlewares";
 import path from "path";
-import rateLimit from "express-rate-limit";
+// import rateLimit from "express-rate-limit";
 
 import userRouter from "./routes/user.routes";
 import authRouter from "./routes/auth.routes";
@@ -71,15 +72,15 @@ if (
   );
 }
 
-const apiLimiter = rateLimit({
-  windowMs: 2 * 60 * 1000, // 2 min window
-  max: 100, // 100 requests per IP
-  standardHeaders: true, // RateLimit-* headers
-  legacyHeaders: false,
-  message: {
-    error: "Too many requests, slow down. Please try again later.",
-  },
-});
+// const apiLimiter = rateLimit({
+//   windowMs: 2 * 60 * 1000, // 2 min window
+//   max: 100, // 100 requests per IP
+//   standardHeaders: true, // RateLimit-* headers
+//   legacyHeaders: false,
+//   message: {
+//     error: "Too many requests, slow down. Please try again later.",
+//   },
+// });
 
 const corsOptions = {
   origin: "*",
@@ -109,7 +110,7 @@ app.get("/", (request, response) => {
   });
 });
 
-app.use("/api/v1", apiLimiter);
+// app.use("/api/v1", apiLimiter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/overview", overviewRouter);
@@ -167,9 +168,11 @@ sequelize
 
     app.listen(PORT, () => {
       console.log(
-        `App running in ${
-          process.env.NODE_ENV ?? "development"
-        } mode on port ${PORT}`,
+        pc.blue(
+          `App running in ${
+            process.env.NODE_ENV ?? "development"
+          } mode on port ${PORT}`,
+        ),
       );
     });
   })

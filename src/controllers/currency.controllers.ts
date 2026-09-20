@@ -7,6 +7,7 @@ import {
   updateCurrencyStatus,
   updateCurrency,
   updateCurrencyRates,
+  addAllCurrencies,
 } from "../services/currency.services";
 import { createServerError, makeError } from "../services/error.services";
 import { CURRENCY } from "../utils/constant";
@@ -75,23 +76,6 @@ export const getAllActiveCurrencies: RequestHandler = async (
 
     response.status(200).json({
       data: currencies,
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const getNewCurrencyRates: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-): Promise<any> => {
-  try {
-    await updateCurrencyRates();
-
-    response.status(200).json({
-      message: "Rates updated successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);
@@ -171,6 +155,23 @@ export const updateCurrencies: RequestHandler = async (
 
     response.status(200).json({
       message: "Currency added successfully.",
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getNewCurrencyRates: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<any> => {
+  try {
+    await addAllCurrencies();
+
+    response.status(200).json({
+      message: "Rates updated successfully.",
     });
   } catch (err) {
     const error = createServerError(err as Error, 500);

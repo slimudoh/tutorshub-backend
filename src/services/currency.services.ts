@@ -84,68 +84,6 @@ export const fetchNewRates = async (currency = DEFAULT_CURRENCY) => {
   return { success: true, data: result };
 };
 
-export const addAllCurrencies = async (
-  rates: Record<string, number>,
-): Promise<void> => {
-  const newCurrencies = Object.entries(rates).map(([symbol, amount]) => ({
-    id: crypto.randomUUID(),
-    symbol,
-    amount,
-    status: CURRENCY.SUSPENDED,
-  }));
-
-  await Currency.bulkCreate(newCurrencies);
-};
-
-export const updateAllCurrencies = async (
-  rates: Record<string, number>,
-): Promise<void> => {
-  const currencies = await Currency.findAll({
-    attributes: ["symbol"],
-    raw: true,
-  });
-
-  const symbolSet = new Set(currencies.map((c) => c.symbol));
-
-  const updates = Object.entries(rates)
-    .filter(([symbol]) => symbolSet.has(symbol))
-    .map(([symbol, amount]) =>
-      Currency.update({ amount }, { where: { symbol } }),
-    );
-
-  await Promise.all(updates);
-};
-
-export const updateCurrenciesList = async (): Promise<void> => {
-  const currencies = await Currency.findAll({
-    where: { status: CURRENCY.ACTIVE },
-    attributes: ["symbol"],
-    raw: true,
-  });
-
-  for (const { symbol } of currencies) {
-    if (!symbol) continue;
-
-    const rateData = await getCurrencyData(symbol);
-    if (!rateData) continue;
-
-    const newRates = Object.entries(rateData)
-      .filter(([, value]) => Number(value) > 0)
-      .map(([toCurrency, amount]) => ({
-        id: crypto.randomUUID(),
-        fromCurrency: symbol,
-        toCurrency,
-        amount,
-        status: CURRENCY.ACTIVE,
-      }));
-
-    if (!newRates.length) continue;
-
-    await Rate.destroy({ where: { fromCurrency: symbol } });
-    await Rate.bulkCreate(newRates);
-  }
-};
-
 export const getCurrencyData = async (
   currency: string,
 ): Promise<Record<string, number> | null> => {
@@ -256,7 +194,77 @@ export const updateCurrencyRates = async () => {
     throw new Error("Rates not found. Please try again later.");
   }
 
-  // await addAllCurrencies(rates);
-
   await Promise.all([updateAllCurrencies(rates), updateCurrenciesList()]);
+};
+
+export const addAllCurrencies = async () => {
+  const result: any = await fetchNewRates();
+
+  if (!result.success) {
+    throw new Error(result.message);
+  }
+
+  const rates = result?.data?.rates;
+
+  if (!rates) {
+    throw new Error("Rates not found. Please try again later.");
+  }
+
+  const newCurrencies = Object.entries(rates).map(([symbol, amount]) => ({
+    id: crypto.randomUUID(),
+    symbol,
+    amount,
+    status: CURRENCY.SUSPENDED,
+  }));
+
+  await Currency.bulkCreate(newCurrencies);
+};
+
+export const updateAllCurrencies = async (
+  rates: Record<string, number>,
+): Promise<void> => {
+  const currencies = await Currency.findAll({
+    attributes: ["symbol"],
+    raw: true,
+  });
+
+  const symbolSet = new Set(currencies.map((c) => c.symbol));
+
+  const updates = Object.entries(rates)
+    .filter(([symbol]) => symbolSet.has(symbol))
+    .map(([symbol, amount]) =>
+      Currency.update({ amount }, { where: { symbol } }),
+    );
+
+  await Promise.all(updates);
+};
+
+export const updateCurrenciesList = async (): Promise<void> => {
+  const currencies = await Currency.findAll({
+    where: { status: CURRENCY.ACTIVE },
+    attributes: ["symbol"],
+    raw: true,
+  });
+
+  for (const { symbol } of currencies) {
+    if (!symbol) continue;
+
+    const rateData = await getCurrencyData(symbol);
+    if (!rateData) continue;
+
+    const newRates = Object.entries(rateData)
+      .filter(([, value]) => Number(value) > 0)
+      .map(([toCurrency, amount]) => ({
+        id: crypto.randomUUID(),
+        fromCurrency: symbol,
+        toCurrency,
+        amount,
+        status: CURRENCY.ACTIVE,
+      }));
+
+    if (!newRates.length) continue;
+
+    await Rate.destroy({ where: { fromCurrency: symbol } });
+    await Rate.bulkCreate(newRates);
+  }
 };
