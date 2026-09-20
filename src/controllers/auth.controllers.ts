@@ -28,6 +28,7 @@ import {
   findFreePlan,
 } from "../services/pricing.services";
 import moment from "moment";
+import pc from "picocolors";
 
 export const registerUser: RequestHandler = async (
   request: Request,
@@ -121,6 +122,8 @@ export const loginUser: RequestHandler = async (
 
     if (user.emailVerified === VERIFICATION.NOT_VERIFIED) {
       const token = await generateEmailToken(user);
+
+      console.log(pc.red(token));
 
       await sendSingleMail({
         from: MAIL_CONFIG.sender,
