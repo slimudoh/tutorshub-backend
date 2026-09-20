@@ -11,6 +11,7 @@ import { Op } from "sequelize";
 import moment from "moment";
 import DeletedAccount from "../models/deletedAccount.models";
 import sequelize from "../utils/db";
+import pc from "picocolors";
 
 export const deleteUserByEmail = async (emailAddress: string) => {
   await User.destroy({
@@ -47,6 +48,8 @@ export const createUser = async (
   const hashedPassword = await bcrypt.hash(String(password), 12);
   const userName = await getUserName(firstName);
   const token = Math.floor(Math.random() * 900000) + 100000;
+
+  console.log(pc.red(token));
 
   const user = await User.create({
     id: crypto.randomUUID(),
