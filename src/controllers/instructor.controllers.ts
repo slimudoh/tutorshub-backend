@@ -336,7 +336,7 @@ export const reviewInstructors: RequestHandler = async (
       updateUserRole(targetInstructor.userId, newRole),
     ]);
 
-    const notificationMessage = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
+    const notificationMessage = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}. Please log out and log in again for the change to take effect.`;
 
     await Promise.all([
       createNotification(
