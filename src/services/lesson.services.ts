@@ -91,9 +91,13 @@ export const findLessonByDateTime = async (
   lessonDate: string,
   startTime: string,
   endTime: string,
+  userId?: string,
   excludeId?: string,
   viewerUserId?: string,
 ) => {
+  console.log({ lessonDate });
+  console.log({ startTime });
+
   const dayStart = new Date(`${lessonDate}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
@@ -102,6 +106,7 @@ export const findLessonByDateTime = async (
     where: {
       lessonDate: { [Op.gte]: dayStart, [Op.lt]: dayEnd },
       status: { [Op.notIn]: [LESSON.SUSPENDED, LESSON.DEACTIVATED] },
+      ...(userId && { userId }),
       ...(excludeId && { id: { [Op.ne]: excludeId } }),
     },
     attributes: ["id", "startTime", "endTime", "status"],

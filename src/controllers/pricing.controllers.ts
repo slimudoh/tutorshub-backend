@@ -74,11 +74,14 @@ export const getPricingPlan: RequestHandler = async (
   try {
     const { id } = request.params;
 
-    const plan = await findPricingPlanById(id);
+    let plan = await findPricingPlanById(id);
 
     if (!plan) {
       return next(makeError("Plan not found. Please try again later.", 404));
     }
+
+    const userCurrency = await getUserCurrency(request);
+    plan = await convertSingleCurrency(plan, userCurrency);
 
     response.status(200).json({
       data: plan,

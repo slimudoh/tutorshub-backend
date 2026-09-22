@@ -51,7 +51,7 @@ export const addInstructor: RequestHandler = async (
     if (subscriptionPlans.length === 0) {
       return next(
         makeError(
-          "You need a subscription to become an instructor. Please subscribe to a plan and try again.",
+          "You need a paid subscription to become an instructor. Please subscribe to a plan and try again.",
           400,
         ),
       );
