@@ -2,7 +2,7 @@ import { RequestHandler, Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import BlackListToken from "../models/blackListToken.models";
 import { createServerError, makeError } from "../services/error.services";
-import { CustomRequest, IJwtPayload } from "../types/user";
+import { CustomRequest, IJwtPayload } from "../types";
 
 const isAuth: RequestHandler = async (
   request: Request,

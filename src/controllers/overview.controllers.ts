@@ -4,7 +4,7 @@ import {
   getAdminOverviewData,
   getUserOverviewData,
 } from "../services/overview.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getAdminOverview: RequestHandler = async (
   request: Request,

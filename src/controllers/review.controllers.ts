@@ -19,7 +19,7 @@ import { createNotification } from "../services/notification.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { REVIEW_COMMENT } from "../utils/constant";
 import { paginationHelper } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getAdminReviews: RequestHandler = async (
   request: Request,

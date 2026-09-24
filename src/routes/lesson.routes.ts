@@ -23,7 +23,7 @@ import isUser from "../middlewares/user.middlewares";
 import { check } from "express-validator";
 import Validate from "../middlewares/validate.middlewares";
 import isInstructor from "../middlewares/instructor.middlewares";
-import { imageUpload } from "../utils/file";
+import { optionalImageUpload } from "../utils/file";
 
 const router = Router();
 
@@ -67,7 +67,7 @@ router.patch(
 
 router.post(
   "/",
-  imageUpload.single("file"),
+  optionalImageUpload,
   check("title").notEmpty().withMessage("Title is required."),
   check("category").notEmpty().withMessage("Category is required."),
   check("level").notEmpty().withMessage("Level is required."),
@@ -76,6 +76,10 @@ router.post(
   check("lessonDate").notEmpty().withMessage("Lesson Date is required."),
   check("startTime").notEmpty().withMessage("Start Time is required."),
   check("endTime").notEmpty().withMessage("End Time is required."),
+  check("lessonTotal").notEmpty().withMessage("Total Lesson is required."),
+  check("frequency").notEmpty().withMessage("Frequency is required."),
+  check("weeklyDays").notEmpty().withMessage("Weekly Days is required."),
+  check("customDates").notEmpty().withMessage("Custom Dates  is required."),
   check("lateJoinMinutes")
     .notEmpty()
     .withMessage("Late Join Minutes is required."),
@@ -96,7 +100,8 @@ router.post(
 
 router.patch(
   "/",
-  imageUpload.single("file"),
+  optionalImageUpload,
+  check("id").notEmpty().withMessage("Lesson ID is required."),
   check("title").notEmpty().withMessage("Title is required."),
   check("category").notEmpty().withMessage("Category is required."),
   check("level").notEmpty().withMessage("Level is required."),
@@ -105,6 +110,10 @@ router.patch(
   check("lessonDate").notEmpty().withMessage("Lesson Date is required."),
   check("startTime").notEmpty().withMessage("Start Time is required."),
   check("endTime").notEmpty().withMessage("End Time is required."),
+  check("lessonTotal").notEmpty().withMessage("Total Lesson is required."),
+  check("frequency").notEmpty().withMessage("Frequency is required."),
+  check("weeklyDays").notEmpty().withMessage("Weekly Days is required."),
+  check("customDates").notEmpty().withMessage("Custom Dates  is required."),
   check("lateJoinMinutes")
     .notEmpty()
     .withMessage("Late Join Minutes is required."),

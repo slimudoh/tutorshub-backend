@@ -13,7 +13,7 @@ import { createServerError, makeError } from "../services/error.services";
 import { CURRENCY } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getCurrencies: RequestHandler = async (
   request: Request,

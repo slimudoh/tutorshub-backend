@@ -23,7 +23,7 @@ import {
   findFreePlan,
   findUsersSubscriptionPlans,
 } from "../services/pricing.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 const VALID_INSTRUCTOR_REVIEW_STATUSES = new Set([
   INSTRUCTOR.APPROVED,

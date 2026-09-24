@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { addDays, format, getDay, isAfter } from "date-fns";
 
 export const removeUnderscoreFromString = (value: string) => {
   if (value) {
@@ -99,7 +99,7 @@ export const toSlug = (value: string): string => {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
 
-  return `${slug}-${Date.now()}`;
+  return slug;
 };
 
 export const paginationHelper = (pageNumber: string, pageSize: string) => {
@@ -107,4 +107,36 @@ export const paginationHelper = (pageNumber: string, pageSize: string) => {
   const newPageSize = Math.max(1, Math.min(Number(pageSize) || 10, 100));
   const offsetSize = (newPageNumber - 1) * newPageSize;
   return { newPageNumber, newPageSize, offsetSize };
+};
+
+export const generateDates = (
+  startDate: Date,
+  limit: number,
+  today: Date,
+  allowedDaySet: Set<number>,
+) => {
+  const dates = [];
+  let current = startDate;
+
+  while (dates.length < limit) {
+    const isFuture = isAfter(current, today);
+
+    // getDay() returns a number, so we can compare directly against the set
+    if (isFuture && allowedDaySet.has(getDay(current))) {
+      dates.push({
+        date: format(current, "yyyy-MM-dd"),
+        day: format(current, "EEEE"),
+        dayIndex: getDay(current), // 1, 2, 3, or 4
+        raw: current,
+      });
+    }
+
+    current = addDays(current, 1);
+  }
+
+  return dates;
+};
+
+export const generateShortId = () => {
+  return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 };

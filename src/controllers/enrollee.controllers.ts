@@ -2,7 +2,7 @@ import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError } from "../services/error.services";
 import { getAdminEnrollees, getEnrollees } from "../services/enrollee.services";
 import { paginationHelper } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getAllEnrollees: RequestHandler = async (
   request: Request,

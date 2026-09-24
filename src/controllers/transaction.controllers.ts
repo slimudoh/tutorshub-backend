@@ -23,7 +23,7 @@ import { createNotification } from "../services/notification.services";
 import { createBulkAuditLogs } from "../services/auditLog.services";
 import { getUserCurrency } from "../services/currency.services";
 import { paginationHelper } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getPayments: RequestHandler = async (
   request: Request,

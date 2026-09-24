@@ -16,7 +16,7 @@ import { findUserById } from "../services/user.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { deleteFile } from "../utils/file";
 import { toSlug } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getCategories: RequestHandler = async (
   request: Request,

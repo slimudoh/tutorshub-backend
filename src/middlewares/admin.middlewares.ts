@@ -6,7 +6,7 @@ import {
   findUserById,
 } from "../services/user.services";
 import { createServerError, makeError } from "../services/error.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 const isAdmin: RequestHandler = async (
   request: Request,

@@ -9,7 +9,7 @@ import {
 import { findLessonById } from "../services/lesson.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getUserWishList: RequestHandler = async (
   request: Request,

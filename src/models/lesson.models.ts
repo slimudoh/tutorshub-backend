@@ -11,6 +11,7 @@ class Lesson extends Model {
   declare externalFriendlyUrl: string | null;
   declare slug: string | null;
   declare userId: string | null;
+  declare seriesId: string | null;
   declare categoryId: string | null;
   declare title: string | null;
   declare description: string | null;
@@ -69,6 +70,10 @@ Lesson.init(
       allowNull: true,
     },
     userId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    seriesId: {
       type: DataTypes.UUID,
       allowNull: true,
     },

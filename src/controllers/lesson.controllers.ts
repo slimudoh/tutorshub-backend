@@ -11,7 +11,6 @@ import {
   getActiveHomeLessons,
   fetchLessonsByCategory,
   fetchAllInstructorLessons,
-  addLessonInformation,
   findLessonBySlug,
   updateLessonInformation,
   fetchLessonsByInstructor,
@@ -23,16 +22,25 @@ import {
   cancelLessonEnrollments,
   enrolLesson,
   findLessonByDateTime,
+  addLessonInformation,
 } from "../services/lesson.services";
-
+import {
+  addDays,
+  format,
+  parseISO,
+  startOfDay,
+  differenceInHours,
+} from "date-fns";
 import {
   LESSON,
+  lessonFrequencies,
+  MAX_LESSONS_AT_ONCE,
   MAX_PARTICIPANT_PER_FREE_LESSON,
   MAX_PARTICIPANT_PER_PAID_LESSON,
   SUBSCRIPTION,
 } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
-import { findUserById, findAllActiveUsers } from "../services/user.services";
+import { findAllActiveUsers, findUserById } from "../services/user.services";
 import { findCategoryBySlug } from "../services/category.services";
 import { createBulkNotifications } from "../services/notification.services";
 import { resolveOptionalUserId } from "../services/auth.services";
@@ -43,17 +51,19 @@ import {
   minutesLeftFromNow,
   paginationHelper,
   toSlug,
+  generateDates,
+  generateShortId,
 } from "../utils/formatter";
 import {
   addSubscriptionCredits,
   findFreePlan,
   findUsersSubscriptionPlans,
 } from "../services/pricing.services";
-import { differenceInHours } from "date-fns";
 import { fetchLessonEnrollees } from "../services/enrollee.services";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import { Op } from "@sequelize/core";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
+import sequelize from "../utils/db";
 
 export const getAllLessons: RequestHandler = async (
   request: Request,
@@ -598,6 +608,10 @@ export const submitNewLesson: RequestHandler = async (
       lessonDate,
       startTime,
       endTime,
+      lessonTotal,
+      frequency,
+      weeklyDays,
+      customDates,
       participants,
       description,
       freeLesson,
@@ -608,21 +622,140 @@ export const submitNewLesson: RequestHandler = async (
       fileName,
     } = request.body;
 
-    const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
-    const slug = toSlug(title);
-
-    const [lessonByDate, existingBySlug] = await Promise.all([
-      findLessonByDateTime(lessonDate, startTime, endTime),
-      findLessonBySlug(slug),
-    ]);
-
-    if (existingBySlug) {
-      return next(makeError(`Lesson with slug "${slug}" already exists.`, 400));
+    if (!title || !category || !level || !language) {
+      return next(makeError("Required fields are missing.", 400));
     }
 
-    if (lessonByDate) {
+    if (!lessonFrequencies.includes(frequency)) {
+      return next(makeError("Invalid frequency. Please try again later.", 400));
+    }
+
+    const numParticipants = Number(participants);
+    const numLessonTotal = Number(lessonTotal);
+    const numDuration = Number(duration);
+    const numLateJoinMinutes = Number(lateJoinMinutes);
+
+    if (
+      isNaN(numParticipants) ||
+      isNaN(numLessonTotal) ||
+      isNaN(numDuration) ||
+      isNaN(numLateJoinMinutes)
+    ) {
+      return next(makeError("Invalid numeric values provided.", 400));
+    }
+
+    if (numParticipants <= 0) {
+      return next(makeError("Participants must be greater than 0.", 400));
+    }
+
+    if (numDuration <= 0) {
+      return next(makeError("Duration must be greater than 0.", 400));
+    }
+
+    if (numLateJoinMinutes < 0) {
+      return next(makeError("Late join minutes cannot be negative.", 400));
+    }
+
+    if (frequency === "daily" || frequency === "weekly") {
+      if (isNaN(numLessonTotal) || numLessonTotal <= 0) {
+        return next(makeError("Lesson total must be a positive number.", 400));
+      }
+
+      if (numLessonTotal > MAX_LESSONS_AT_ONCE) {
+        return next(
+          makeError(
+            `You can create at most ${MAX_LESSONS_AT_ONCE} lessons at once. Please reduce the lesson total and try again.`,
+            400,
+          ),
+        );
+      }
+    }
+
+    const newWeekDays = weeklyDays ? JSON.parse(weeklyDays) : [];
+
+    if (frequency === "weekly" && newWeekDays.length > 0) {
+      const invalidDays = newWeekDays.filter(
+        (day: number) => day < 0 || day > 6 || !Number.isInteger(day),
+      );
+
+      if (invalidDays.length > 0) {
+        return next(
+          makeError(
+            "Weekly days must be integers between 0 (Sunday) and 6 (Saturday).",
+            400,
+          ),
+        );
+      }
+    }
+
+    const newCustomDays = customDates ? JSON.parse(customDates) : [];
+
+    if (
+      frequency === "custom" &&
+      (!newCustomDays || newCustomDays.length === 0)
+    ) {
       return next(
-        makeError("Lesson already exists for this date and time.", 409),
+        makeError("Custom dates are required for custom frequency.", 400),
+      );
+    }
+
+    const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
+    if (!lessonDateTime) {
+      return next(makeError("Invalid lesson date or start time format.", 400));
+    }
+
+    const lessonEndTime = lessonDateStartTime(endTime, lessonDate);
+    if (!lessonEndTime) {
+      return next(makeError("Invalid lesson date or end time format.", 400));
+    }
+
+    if (lessonEndTime <= lessonDateTime) {
+      return next(makeError("End time must be after start time.", 400));
+    }
+
+    // Generate all lesson dates based on frequency
+    const allLessonDates: string[] = [];
+    if (frequency === "once") {
+      allLessonDates.push(lessonDate);
+    } else if (frequency === "daily" && numLessonTotal > 0) {
+      const today = startOfDay(new Date());
+      allLessonDates.push(
+        ...Array.from({ length: numLessonTotal }, (_, i) =>
+          format(addDays(today, i), "yyyy-MM-dd"),
+        ),
+      );
+    } else if (frequency === "weekly" && newWeekDays.length > 0) {
+      const selectedDate = parseISO(lessonDate);
+      const today = startOfDay(new Date());
+      const allowedDaySet: Set<number> = new Set(newWeekDays);
+      const dateStrings = generateDates(
+        selectedDate,
+        numLessonTotal,
+        today,
+        allowedDaySet,
+      );
+      allLessonDates.push(...dateStrings.map((d) => d.date));
+    } else if (
+      frequency === "custom" &&
+      newCustomDays &&
+      newCustomDays.length > 0
+    ) {
+      allLessonDates.push(...newCustomDays.map((date: string) => date));
+    }
+
+    // Check all dates for conflicts
+    const conflictChecks = allLessonDates.map((date) =>
+      findLessonByDateTime(date, startTime, endTime),
+    );
+    const conflictResults = await Promise.all(conflictChecks);
+
+    const hasConflict = conflictResults.some((result) => result !== null);
+    if (hasConflict) {
+      return next(
+        makeError(
+          "One or more lesson dates conflict with existing lessons.",
+          409,
+        ),
       );
     }
 
@@ -638,7 +771,7 @@ export const submitNewLesson: RequestHandler = async (
     if (
       !validateParticipantLimits(
         freeLesson,
-        Number(participants),
+        numParticipants,
         hasFreeLessonThisMonth,
         next,
       )
@@ -646,19 +779,18 @@ export const submitNewLesson: RequestHandler = async (
       return;
     }
 
-    const lesson = await addLessonInformation({
+    const payload: any = {
       userId,
-      slug,
       title,
       category,
       level,
       language,
-      duration,
-      lateJoinMinutes,
+      duration: numDuration.toString(),
+      lateJoinMinutes: numLateJoinMinutes.toString(),
       lessonDate,
       startTime,
       endTime,
-      participants,
+      participants: numParticipants,
       description,
       freeLesson,
       lectures,
@@ -666,7 +798,49 @@ export const submitNewLesson: RequestHandler = async (
       seoDescription,
       seoTags,
       file: request.file?.filename ?? fileName,
-    });
+    };
+
+    const transaction = await sequelize.transaction();
+    let lessons: any = null;
+
+    try {
+      let slug = toSlug(title);
+
+      lessons = await Promise.all(
+        allLessonDates.map((ld) => {
+          return addLessonInformation(
+            {
+              ...payload,
+              slug: slug + "-" + generateShortId(),
+              lessonDate: ld,
+            },
+            null,
+            transaction,
+          );
+        }),
+      );
+
+      if (!lessons || (Array.isArray(lessons) && lessons.length === 0)) {
+        throw new Error("Failed to create lesson.");
+      }
+
+      await transaction.commit();
+    } catch (err: any) {
+      await transaction.rollback();
+
+      // Handle duplicate key error specifically
+      if (err?.code === "ER_DUP_ENTRY" || err?.errno === 1062) {
+        return next(
+          makeError(
+            "A lesson with this slug already exists. Please try again.",
+            409,
+          ),
+        );
+      }
+
+      const error = createServerError(err as Error, 500);
+      return next(error);
+    }
 
     const [user, users] = await Promise.all([
       findUserById(userId),
@@ -683,7 +857,7 @@ export const submitNewLesson: RequestHandler = async (
           .filter((usr) => usr.emailAddress !== user?.emailAddress)
           .map((usr) => ({
             title: "New Lesson",
-            message: `A new lesson has been created ${title} by ${user?.firstName} ${user?.lastName}.`,
+            message: `A new lesson has been created ${title} by ${user?.firstName || ""} ${user?.lastName || ""}.`,
             receiverId: usr.id ?? "",
             senderId: null,
           })),
@@ -691,7 +865,7 @@ export const submitNewLesson: RequestHandler = async (
       createAuditLog({
         user: JSON.stringify(user),
         action: "CREATE LESSON",
-        newData: JSON.stringify(lesson),
+        newData: JSON.stringify(lessons),
         section: "LESSON",
       }),
     ]);
@@ -721,6 +895,10 @@ export const submitUpdatedLesson: RequestHandler = async (
       lessonDate,
       startTime,
       endTime,
+      lessonTotal,
+      frequency,
+      weeklyDays,
+      customDates,
       lateJoinMinutes,
       participants,
       description,
@@ -731,6 +909,10 @@ export const submitUpdatedLesson: RequestHandler = async (
       seoTags,
       fileName,
     } = request.body;
+
+    if (!lessonFrequencies.includes(frequency)) {
+      return next(makeError("Invalid frequency. Please try again later.", 400));
+    }
 
     const verifyLesson = await findLessonById(id, userId);
     if (!verifyLesson) {
@@ -749,25 +931,97 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
-    // 30-minute lock: based on the EXISTING lesson's start time, not the new one
-    if (verifyLesson.startTime && verifyLesson.lessonDate) {
-      const existingLessonDateTime = lessonDateStartTime(
-        verifyLesson.startTime,
-        verifyLesson.lessonDate,
-      );
-      const minutesUntilStart = minutesLeftFromNow(existingLessonDateTime);
+    const numParticipants = Number(participants);
+    const numLessonTotal = Number(lessonTotal);
+    const numDuration = Number(duration);
+    const numLateJoinMinutes = Number(lateJoinMinutes);
 
-      if (minutesUntilStart !== null && minutesUntilStart <= 30) {
+    if (
+      isNaN(numParticipants) ||
+      isNaN(numLessonTotal) ||
+      isNaN(numDuration) ||
+      isNaN(numLateJoinMinutes)
+    ) {
+      return next(makeError("Invalid numeric values provided.", 400));
+    }
+
+    if (numParticipants <= 0) {
+      return next(makeError("Participants must be greater than 0.", 400));
+    }
+
+    if (numDuration <= 0) {
+      return next(makeError("Duration must be greater than 0.", 400));
+    }
+
+    if (numLateJoinMinutes < 0) {
+      return next(makeError("Late join minutes cannot be negative.", 400));
+    }
+
+    if (frequency === "daily" || frequency === "weekly") {
+      if (isNaN(numLessonTotal) || numLessonTotal <= 0) {
+        return next(makeError("Lesson total must be a positive number.", 400));
+      }
+
+      if (numLessonTotal > MAX_LESSONS_AT_ONCE) {
         return next(
           makeError(
-            "You can no longer update this lesson. Lessons cannot be updated within 30 minutes of the start time.",
+            `You can create at most ${MAX_LESSONS_AT_ONCE} lessons at once. Please reduce the lesson total and try again.`,
             400,
           ),
         );
       }
     }
 
+    const newWeekDays = weeklyDays ? JSON.parse(weeklyDays) : [];
+
+    if (frequency === "weekly" && newWeekDays.length > 0) {
+      const invalidDays = newWeekDays.filter(
+        (day: number) => day < 0 || day > 6 || !Number.isInteger(day),
+      );
+      if (invalidDays.length > 0) {
+        return next(
+          makeError(
+            "Weekly days must be integers between 0 (Sunday) and 6 (Saturday).",
+            400,
+          ),
+        );
+      }
+    }
+
+    const newCustomDays = customDates ? JSON.parse(customDates) : [];
+
+    if (
+      frequency === "custom" &&
+      (!newCustomDays || newCustomDays.length === 0)
+    ) {
+      return next(
+        makeError("Custom dates are required for custom frequency.", 400),
+      );
+    }
+
     const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
+    if (!lessonDateTime) {
+      return next(makeError("Invalid lesson date or start time format.", 400));
+    }
+
+    const lessonEndTime = lessonDateStartTime(endTime, lessonDate);
+    if (!lessonEndTime) {
+      return next(makeError("Invalid lesson date or end time format.", 400));
+    }
+
+    if (lessonEndTime <= lessonDateTime) {
+      return next(makeError("End time must be after start time.", 400));
+    }
+
+    const minutesUntilStart = minutesLeftFromNow(lessonDateTime);
+    if (minutesUntilStart !== null && minutesUntilStart <= 30) {
+      return next(
+        makeError(
+          "You can no longer update this lesson. Lessons cannot be updated within 30 minutes of the start time.",
+          400,
+        ),
+      );
+    }
 
     if (lessonDateTime <= new Date()) {
       return next(
@@ -775,16 +1029,49 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
-    const lessonByDate = await findLessonByDateTime(
-      lessonDate,
-      startTime,
-      endTime,
-      id,
-    );
+    // Generate all lesson dates based on frequency
+    const allLessonDates: string[] = [];
+    if (frequency === "once") {
+      allLessonDates.push(lessonDate);
+    } else if (frequency === "daily" && numLessonTotal > 0) {
+      const today = startOfDay(new Date());
+      allLessonDates.push(
+        ...Array.from({ length: numLessonTotal }, (_, i) =>
+          format(addDays(today, i), "yyyy-MM-dd"),
+        ),
+      );
+    } else if (frequency === "weekly" && newWeekDays.length > 0) {
+      const selectedDate = parseISO(lessonDate);
+      const today = startOfDay(new Date());
+      const allowedDaySet: Set<number> = new Set(newWeekDays);
+      const dateStrings = generateDates(
+        selectedDate,
+        numLessonTotal,
+        today,
+        allowedDaySet,
+      );
+      allLessonDates.push(...dateStrings.map((d) => d.date));
+    } else if (
+      frequency === "custom" &&
+      newCustomDays &&
+      newCustomDays.length > 0
+    ) {
+      allLessonDates.push(...newCustomDays.map((date: string) => date));
+    }
 
-    if (lessonByDate) {
+    // Check all dates for conflicts (excluding the current lesson being updated)
+    const conflictChecks = allLessonDates.map((date) =>
+      findLessonByDateTime(date, startTime, endTime, undefined, id),
+    );
+    const conflictResults = await Promise.all(conflictChecks);
+
+    const hasConflict = conflictResults.some((result) => result !== null);
+    if (hasConflict) {
       return next(
-        makeError("Lesson already exists for this date and time.", 409),
+        makeError(
+          "One or more lesson dates conflict with existing lessons.",
+          409,
+        ),
       );
     }
 
@@ -794,7 +1081,7 @@ export const submitUpdatedLesson: RequestHandler = async (
     if (
       !validateParticipantLimits(
         freeLesson,
-        Number(participants),
+        numParticipants,
         hasFreeLessonThisMonth,
         next,
       )
@@ -802,18 +1089,18 @@ export const submitUpdatedLesson: RequestHandler = async (
       return;
     }
 
-    const updatedLesson = await updateLessonInformation({
+    const payload = {
       id,
       title,
       category,
       level,
       language,
-      duration,
-      lateJoinMinutes,
+      duration: numDuration.toString(),
+      lateJoinMinutes: numLateJoinMinutes.toString(),
       lessonDate,
       startTime,
       endTime,
-      participants,
+      participants: numParticipants,
       description,
       freeLesson,
       lectures,
@@ -823,7 +1110,34 @@ export const submitUpdatedLesson: RequestHandler = async (
       file: request.file?.filename ?? fileName,
       externalRoomId: verifyLesson?.externalRoomId || "",
       slug: verifyLesson?.slug || "",
-    });
+    };
+
+    const transaction = await sequelize.transaction();
+    let updatedLesson: any = null;
+
+    try {
+      updatedLesson = await Promise.all(
+        allLessonDates.map((ld) => {
+          return updateLessonInformation(
+            { ...payload, lessonDate: ld },
+            transaction,
+          );
+        }),
+      );
+
+      if (
+        !updatedLesson ||
+        (Array.isArray(updatedLesson) && updatedLesson.length === 0)
+      ) {
+        throw new Error("Failed to update lesson.");
+      }
+
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      const error = createServerError(err as Error, 500);
+      return next(error);
+    }
 
     const [user, enrollees] = await Promise.all([
       findUserById(userId),
@@ -840,7 +1154,7 @@ export const submitUpdatedLesson: RequestHandler = async (
           .filter((enrollee) => enrollee.user?.id !== userId)
           .map((enrollee) => ({
             title: "Lesson Updated",
-            message: `The lesson ${title} has been updated by ${user?.firstName} ${user?.lastName}.`,
+            message: `The lesson ${title} has been updated by ${user?.firstName || ""} ${user?.lastName || ""}.`,
             receiverId: enrollee?.user?.id ?? "",
             senderId: null,
           })),

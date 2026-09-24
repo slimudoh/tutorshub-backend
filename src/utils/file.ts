@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { Request, Response, NextFunction } from "express";
 
 // Configurable so you can point it at a persistent disk on Render
 export const UPLOAD_DIR =
@@ -63,4 +64,26 @@ export const deleteFile = async (filename: string) => {
   } catch (err: any) {
     if (err.code !== "ENOENT") throw err;
   }
+};
+
+// Middleware to make file upload optional
+export const optionalImageUpload = (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  imageUpload.single("file")(request, response, (err: any) => {
+    if (err) {
+      // If error is file-related (size, type), pass it through
+      if (
+        err.code === "LIMIT_FILE_SIZE" ||
+        err.message?.includes("File type not allowed")
+      ) {
+        return next(err);
+      }
+      // For other errors (like no file), just continue
+      return next();
+    }
+    next();
+  });
 };

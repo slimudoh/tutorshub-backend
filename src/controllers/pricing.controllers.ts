@@ -43,7 +43,7 @@ import {
   getTransactionByReference,
 } from "../services/transaction.services";
 import { createNotification } from "../services/notification.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getPricingPlans: RequestHandler = async (
   request: Request,

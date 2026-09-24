@@ -14,7 +14,7 @@ import {
   findFreePlan,
   findUsersSubscriptionPlans,
 } from "../services/pricing.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 import {
   activateLessonRoom,
   exportRoomChat,

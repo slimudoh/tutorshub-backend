@@ -17,7 +17,7 @@ import {
   paginationHelper,
   removeUnderscoreFromString,
 } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 const VALID_REVIEW_STATUSES = new Set([
   REPORT.UNDER_REVIEW,

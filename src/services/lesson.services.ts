@@ -52,6 +52,10 @@ import Transaction from "../models/transaction.models";
 import { createRoom, leaveLessonRoom, updateRoom } from "./room.services";
 import sequelize from "../utils/db";
 import { createBulkAuditLogs } from "./auditLog.services";
+import {
+  AddLessonLectureInterface,
+  UpdateLessonLectureInterface,
+} from "../types";
 
 export const findLessonById = async (
   id: string,
@@ -74,12 +78,14 @@ export const findLessonBySlug = async (
   slug: string,
   userId: string | null = null,
   excludeAttributes = true,
+  transaction?: any,
 ) => {
   const lesson = await Lesson.findOne({
     where: { slug },
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
     }),
+    transaction,
     raw: true,
   });
 
@@ -95,9 +101,6 @@ export const findLessonByDateTime = async (
   excludeId?: string,
   viewerUserId?: string,
 ) => {
-  console.log({ lessonDate });
-  console.log({ startTime });
-
   const dayStart = new Date(`${lessonDate}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
@@ -440,119 +443,6 @@ export const fetchAllInstructorLessons = async (
     }),
     raw: true,
   });
-};
-
-export const addLessonInformation = async (payload: {
-  userId: string;
-  slug: string;
-  title: string;
-  category: string;
-  level: string;
-  language: string;
-  duration: string;
-  lateJoinMinutes: string;
-  lessonDate: string;
-  startTime: string;
-  endTime: string;
-  participants: number;
-  description: string;
-  freeLesson: string;
-  lectures: { title: string; description: string }[];
-  seoTitle: string;
-  seoDescription: string;
-  seoTags: string;
-  file: string | null;
-}) => {
-  const lessonId = crypto.randomUUID();
-
-  const data = await createRoom(lessonId, payload.participants);
-
-  return await Lesson.create({
-    id: lessonId,
-    externalRoomId: data.id,
-    externalFriendlyUrl: data.friendly_url,
-    userId: payload.userId,
-    slug: payload.slug,
-    title: payload.title,
-    categoryId: payload.category,
-    level: payload.level,
-    language: payload.language,
-    isLive: false,
-    durationMinutes: Number(payload.duration),
-    lateJoinMinutes: payload.lateJoinMinutes,
-    lessonDate: payload.lessonDate,
-    startTime: payload.startTime,
-    endTime: payload.endTime,
-    maxStudents: payload.participants,
-    description: payload.description,
-    isFree: payload.freeLesson === "true",
-    creditsRequired: 1,
-    image: payload.file,
-    lectures: JSON.stringify(payload.lectures),
-    seoTitle: payload.seoTitle,
-    seoDescription: payload.seoDescription,
-    seoTags: payload.seoTags,
-    roomId: crypto.randomUUID(),
-    status: LESSON.ACTIVE,
-  });
-};
-
-export const updateLessonInformation = async (payload: {
-  id: string;
-  title: string;
-  category: string;
-  level: string;
-  language: string;
-  duration: string;
-  lateJoinMinutes: string;
-  lessonDate: string;
-  startTime: string;
-  endTime: string;
-  participants: number;
-  description: string;
-  freeLesson: string;
-  lectures: { title: string; description: string }[];
-  seoTitle: string;
-  seoDescription: string;
-  seoTags: string;
-  file: string | null;
-  externalRoomId: string;
-  slug: string;
-}) => {
-  let data = null;
-  if (payload.externalRoomId && payload.slug) {
-    data = await updateRoom(payload.externalRoomId, payload.participants);
-  } else {
-    data = await createRoom(payload.id, payload.participants);
-  }
-
-  return await Lesson.update(
-    {
-      externalRoomId: data.id,
-      externalFriendlyUrl: data.friendly_url,
-      title: payload.title,
-      categoryId: payload.category,
-      level: payload.level,
-      language: payload.language,
-      isLive: false,
-      durationMinutes: Number(payload.duration),
-      lateJoinMinutes: payload.lateJoinMinutes,
-      lessonDate: payload.lessonDate,
-      startTime: payload.startTime,
-      endTime: payload.endTime,
-      maxStudents: payload.participants,
-      description: payload.description,
-      isFree: payload.freeLesson === "true",
-      creditsRequired: 1,
-      image: payload.file,
-      lectures: JSON.stringify(payload.lectures),
-      seoTitle: payload.seoTitle,
-      seoDescription: payload.seoDescription,
-      seoTags: payload.seoTags,
-      status: LESSON.ACTIVE,
-    },
-    { where: { id: payload.id } },
-  );
 };
 
 export const fetchAllLessons = async (userId: string) => {
@@ -1252,4 +1142,87 @@ export const processLessonPayout = async (lesson: Lesson) => {
     await t.rollback();
     throw error;
   }
+};
+
+export const addLessonInformation = async (
+  payload: AddLessonLectureInterface,
+  seriesId: string | null,
+  transaction?: any,
+) => {
+  const lessonId = crypto.randomUUID();
+
+  const data = await createRoom(lessonId, payload.participants);
+
+  return await Lesson.create(
+    {
+      id: lessonId,
+      externalRoomId: data.id,
+      externalFriendlyUrl: data.friendly_url,
+      userId: payload.userId,
+      seriesId,
+      slug: payload.slug,
+      title: payload.title,
+      categoryId: payload.category,
+      level: payload.level,
+      language: payload.language,
+      isLive: false,
+      durationMinutes: Number(payload.duration),
+      lateJoinMinutes: payload.lateJoinMinutes,
+      lessonDate: payload.lessonDate,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      maxStudents: payload.participants,
+      description: payload.description,
+      isFree: payload.freeLesson === "true",
+      creditsRequired: 1,
+      image: payload.file,
+      lectures: JSON.stringify(payload.lectures),
+      seoTitle: payload.seoTitle,
+      seoDescription: payload.seoDescription,
+      seoTags: payload.seoTags,
+      roomId: crypto.randomUUID(),
+      status: LESSON.ACTIVE,
+    },
+    { transaction },
+  );
+};
+
+export const updateLessonInformation = async (
+  payload: UpdateLessonLectureInterface,
+  transaction?: any,
+) => {
+  let data = null;
+  if (payload.externalRoomId && payload.slug) {
+    data = await updateRoom(payload.externalRoomId, payload.participants);
+  } else {
+    data = await createRoom(payload.id, payload.participants);
+  }
+
+  return await Lesson.update(
+    {
+      externalRoomId: data.id,
+      externalFriendlyUrl: data.friendly_url,
+      title: payload.title,
+      categoryId: payload.category,
+      level: payload.level,
+      language: payload.language,
+      isLive: false,
+      durationMinutes: Number(payload.duration),
+      lateJoinMinutes: payload.lateJoinMinutes,
+      lessonDate: payload.lessonDate,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      maxStudents: payload.participants,
+      description: payload.description,
+      isFree: payload.freeLesson === "true",
+      creditsRequired: 1,
+      image: payload.file,
+      lectures: JSON.stringify(payload.lectures),
+      seoTitle: payload.seoTitle,
+      seoDescription: payload.seoDescription,
+      seoTags: payload.seoTags,
+      status: LESSON.ACTIVE,
+    },
+    { where: { id: payload.id }, transaction },
+  );
 };

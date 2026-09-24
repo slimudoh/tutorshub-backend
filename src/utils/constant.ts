@@ -195,3 +195,7 @@ export const MAIL_CONFIG = {
   password: "P8B(8b]z37d[",
   host: "mail.one-block.org",
 };
+
+export const lessonFrequencies = ["once", "daily", "weekly", "custom"];
+
+export const MAX_LESSONS_AT_ONCE = 20;

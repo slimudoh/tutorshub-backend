@@ -6,7 +6,7 @@ import {
   readAllUserNotifications,
 } from "../services/notification.services";
 import { paginationHelper } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getNotifications: RequestHandler = async (
   request: Request,

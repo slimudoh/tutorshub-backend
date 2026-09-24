@@ -7,7 +7,7 @@ import {
 } from "../services/user.services";
 import { getInstructorByUserId } from "../services/instructor.services";
 import { createServerError, makeError } from "../services/error.services";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 const isInstructor: RequestHandler = async (
   request: Request,

@@ -27,7 +27,7 @@ import {
   updateInstructorNames,
 } from "../services/instructor.services";
 import { paginationHelper } from "../utils/formatter";
-import { CustomRequest } from "../types/user";
+import { CustomRequest } from "../types";
 
 export const getUsers: RequestHandler = async (
   request: Request,
