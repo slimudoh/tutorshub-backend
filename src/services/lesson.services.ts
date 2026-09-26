@@ -112,7 +112,7 @@ export const findLessonByDateTime = async (
       ...(userId && { userId }),
       ...(excludeId && { id: { [Op.ne]: excludeId } }),
     },
-    attributes: ["id", "startTime", "endTime", "status"],
+    attributes: ["id", "lessonDate", "startTime", "endTime", "status"],
     raw: true,
   });
 
@@ -209,6 +209,23 @@ export const getUserLessons = async (
     order: [["updatedAt", "DESC"]],
     ...(offsetSize !== undefined && { offset: offsetSize }),
     ...(newPageSize !== undefined && { limit: newPageSize }),
+    ...(excludeAttributes && {
+      attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
+    }),
+    raw: true,
+  });
+
+  return getLessonsDependencies(lessons, userId);
+};
+
+export const getUserLessonSeries = async (
+  userId: string,
+  seriesId: string,
+  excludeAttributes = true,
+) => {
+  const lessons = await Lesson.findAll({
+    where: { seriesId, userId },
+    order: [["updatedAt", "DESC"]],
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
     }),
@@ -336,6 +353,25 @@ export const fetchLiveLessons = async (
   return getLessonsDependencies(lessons, userId);
 };
 
+export const fetchLessonsSeries = async (
+  seriesId: string,
+  userId: string | null = null,
+  excludeAttributes = true,
+) => {
+  const lessons = await Lesson.findAll({
+    where: {
+      seriesId,
+    },
+    order: [["updatedAt", "DESC"]],
+    ...(excludeAttributes && {
+      attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
+    }),
+    raw: true,
+  });
+
+  return getLessonsDependencies(lessons, userId);
+};
+
 export const findAllLessonsByIds = async (ids: string[]) => {
   return await Lesson.findAll({
     where: { id: { [Op.in]: ids } },
@@ -433,10 +469,14 @@ export const fetchLessonsByInstructor = async (
 
 export const fetchAllInstructorLessons = async (
   userId: string,
+  keyword?: string,
   excludeAttributes = true,
 ) => {
   return await Lesson.findAll({
-    where: { userId },
+    where: {
+      userId,
+      title: { [Op.like]: `%${keyword}%` },
+    },
     order: [["updatedAt", "DESC"]],
     ...(excludeAttributes && {
       attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
@@ -722,6 +762,18 @@ export const getLessonDependencies = async (
   );
   lesson.wishlist = false;
   lesson.enrolled = false;
+
+  let upcomingSeries = 0;
+  if (lesson.seriesId) {
+    upcomingSeries = await Lesson.count({
+      where: {
+        seriesId: lesson.seriesId,
+        lessonDate: { [Op.gt]: new Date() },
+      },
+    });
+  }
+
+  lesson.upcomingSeries = upcomingSeries;
 
   if (userId) {
     const [wishlist, enrolled, userReview] = await Promise.all([

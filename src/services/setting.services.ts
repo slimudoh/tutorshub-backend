@@ -1,170 +1,131 @@
-// import Setting from "../models/setting.models";
-// import { findUserByEmail } from "./user.services";
+import Setting from "../models/setting.models";
+import { findUserByEmail } from "./user.services";
 
-// export const findUserNotificationSettings = async (userId: string) => {
-//   const settings = await Setting.findOne({
-//     where: {
-//       userId,
-//     },
-//   });
+export type NotificationSettingKey =
+  | "emailNotification"
+  | "pushNotification"
+  | "login"
+  | "newLesson"
+  | "lessonNotSubscribed"
+  | "lessonSubscribed1Day"
+  | "lessonSubscribed1Hour"
+  | "lessonSubscribed30Minutes"
+  | "lessonSubscribed15Minutes"
+  | "lessonSubscribed5Minutes"
+  | "newMessage"
+  | "lessonComplete"
+  | "weeklySummary"
+  | "monthlySummary"
+  | "newStudent"
+  | "showProfilePublicly"
+  | "newReview"
+  | "newBooking"
+  | "bookingReminder"
+  | "bookingCanceled"
+  | "bookingCompleted"
+  | "bookingRescheduled";
 
-//   return settings;
-// };
+export type NotificationSettingsShape = Record<NotificationSettingKey, boolean>;
 
-// export const getNotificationSettingsByUserId = async (userId: string) => {
-//   const settings = await Setting.findOne({
-//     where: {
-//       userId,
-//     },
-//   });
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettingsShape = {
+  emailNotification: false,
+  pushNotification: false,
+  login: false,
+  newLesson: false,
+  lessonNotSubscribed: false,
+  lessonSubscribed1Day: false,
+  lessonSubscribed1Hour: false,
+  lessonSubscribed30Minutes: false,
+  lessonSubscribed15Minutes: false,
+  lessonSubscribed5Minutes: false,
+  newMessage: false,
+  lessonComplete: false,
+  weeklySummary: false,
+  monthlySummary: false,
+  newStudent: false,
+  showProfilePublicly: false,
+  newReview: false,
+  newBooking: false,
+  bookingReminder: false,
+  bookingCanceled: false,
+  bookingCompleted: false,
+  bookingRescheduled: false,
+};
 
-//   return {
-//     emailNotification: settings?.emailNotification || false,
-//     pushNotification: settings?.pushNotification || false,
-//     login: settings?.login || false,
-//     newLesson: settings?.newLesson || false,
-//     lessonNotSubscribed: settings?.lessonNotSubscribed || false,
-//     lessonSubscribed1Day: settings?.lessonSubscribed1Day || false,
-//     lessonSubscribed1Hour: settings?.lessonSubscribed1Hour || false,
-//     lessonSubscribed30Minutes: settings?.lessonSubscribed30Minutes || false,
-//     lessonSubscribed15Minutes: settings?.lessonSubscribed15Minutes || false,
-//     lessonSubscribed5Minutes: settings?.lessonSubscribed5Minutes || false,
-//     newMessage: settings?.newMessage || false,
-//     lessonComplete: settings?.lessonComplete || false,
-//     weeklySummary: settings?.weeklySummary || false,
-//     monthlySummary: settings?.monthlySummary || false,
-//     newStudent: settings?.newStudent || false,
-//     showProfilePublicly: settings?.showProfilePublicly || false,
-//     newReview: settings?.newReview || false,
-//     newBooking: settings?.newBooking || false,
-//     bookingReminder: settings?.bookingReminder || false,
-//     bookingCanceled: settings?.bookingCanceled || false,
-//     bookingCompleted: settings?.bookingCompleted || false,
-//     bookingRescheduled: settings?.bookingRescheduled || false,
-//   };
-// };
+const VALID_KEYS = new Set<string>(Object.keys(DEFAULT_NOTIFICATION_SETTINGS));
 
-// export const getNotificationSettingsByUserEmail = async (email: string) => {
-//   const user = await findUserByEmail(email);
+const withDefaults = (
+  settings: Partial<NotificationSettingsShape> | null | undefined,
+): NotificationSettingsShape => {
+  const result = { ...DEFAULT_NOTIFICATION_SETTINGS };
+  (Object.keys(result) as NotificationSettingKey[]).forEach((key) => {
+    result[key] = settings?.[key] ?? false;
+  });
+  return result;
+};
 
-//   if (!user?.id) {
-//     return null;
-//   }
+export const buildNotificationSettings = (
+  notification: { id: string; value: boolean }[],
+): NotificationSettingsShape => {
+  const merged = { ...DEFAULT_NOTIFICATION_SETTINGS };
 
-//   const settings = await Setting.findOne({
-//     where: {
-//       userId: user.id,
-//     },
-//   });
+  notification.forEach((item) => {
+    if (
+      item &&
+      typeof item.id === "string" &&
+      VALID_KEYS.has(item.id) &&
+      typeof item.value === "boolean"
+    ) {
+      merged[item.id as NotificationSettingKey] = item.value;
+    }
+  });
 
-//   return {
-//     emailNotification: settings?.emailNotification || false,
-//     pushNotification: settings?.pushNotification || false,
-//     login: settings?.login || false,
-//     newLesson: settings?.newLesson || false,
-//     lessonNotSubscribed: settings?.lessonNotSubscribed || false,
-//     lessonSubscribed1Day: settings?.lessonSubscribed1Day || false,
-//     lessonSubscribed1Hour: settings?.lessonSubscribed1Hour || false,
-//     lessonSubscribed30Minutes: settings?.lessonSubscribed30Minutes || false,
-//     lessonSubscribed15Minutes: settings?.lessonSubscribed15Minutes || false,
-//     lessonSubscribed5Minutes: settings?.lessonSubscribed5Minutes || false,
-//     newMessage: settings?.newMessage || false,
-//     lessonComplete: settings?.lessonComplete || false,
-//     weeklySummary: settings?.weeklySummary || false,
-//     monthlySummary: settings?.monthlySummary || false,
-//     newStudent: settings?.newStudent || false,
-//     showProfilePublicly: settings?.showProfilePublicly || false,
-//     newReview: settings?.newReview || false,
-//     newBooking: settings?.newBooking || false,
-//     bookingReminder: settings?.bookingReminder || false,
-//     bookingCanceled: settings?.bookingCanceled || false,
-//     bookingCompleted: settings?.bookingCompleted || false,
-//     bookingRescheduled: settings?.bookingRescheduled || false,
-//   };
-// };
+  return merged;
+};
 
-// export const createNotificationSettingsByUserId = async (
-//   userId: string,
-//   notification: {
-//     id: string;
-//     value: boolean;
-//   }[],
-// ) => {
-//   const newSettings = {
-//     emailNotification: false,
-//     pushNotification: false,
-//     login: false,
-//     newLesson: false,
-//     lessonNotSubscribed: false,
-//     lessonSubscribed1Day: false,
-//     lessonSubscribed1Hour: false,
-//     lessonSubscribed30Minutes: false,
-//     lessonSubscribed15Minutes: false,
-//     lessonSubscribed5Minutes: false,
-//     newMessage: false,
-//     lessonComplete: false,
-//     weeklySummary: false,
-//     monthlySummary: false,
-//     newStudent: false,
-//     showProfilePublicly: false,
-//     newReview: false,
-//     newBooking: false,
-//     bookingReminder: false,
-//     bookingCanceled: false,
-//     bookingCompleted: false,
-//     bookingRescheduled: false,
-//   };
+export const findUserNotificationSettings = async (userId: string) => {
+  return Setting.findOne({
+    where: { userId },
+  });
+};
 
-//   notification.forEach((item: { id: string; value: boolean }) => {
-//     newSettings[item.id as keyof typeof newSettings] = item.value;
-//   });
+export const getNotificationSettingsByUserId = async (
+  userId: string,
+): Promise<NotificationSettingsShape> => {
+  const settings = await Setting.findOne({
+    where: { userId },
+  });
 
-//   await Setting.create({
-//     id: crypto.randomUUID(),
-//     userId,
-//     ...newSettings,
-//   });
-// };
+  const plain = settings
+    ? (settings.toJSON() as Partial<NotificationSettingsShape>)
+    : null;
 
-// export const updateNotificationSettingsByUserId = async (
-//   userId: string,
-//   notification: {
-//     id: string;
-//     value: boolean;
-//   }[],
-// ) => {
-//   const newSettings = {
-//     emailNotification: false,
-//     pushNotification: false,
-//     login: false,
-//     newLesson: false,
-//     lessonNotSubscribed: false,
-//     lessonSubscribed1Day: false,
-//     lessonSubscribed1Hour: false,
-//     lessonSubscribed30Minutes: false,
-//     lessonSubscribed15Minutes: false,
-//     lessonSubscribed5Minutes: false,
-//     newMessage: false,
-//     lessonComplete: false,
-//     weeklySummary: false,
-//     monthlySummary: false,
-//     newStudent: false,
-//     showProfilePublicly: false,
-//     newReview: false,
-//     newBooking: false,
-//     bookingReminder: false,
-//     bookingCanceled: false,
-//     bookingCompleted: false,
-//     bookingRescheduled: false,
-//   };
+  return withDefaults(plain);
+};
 
-//   notification.forEach((item: { id: string; value: boolean }) => {
-//     newSettings[item.id as keyof typeof newSettings] = item.value;
-//   });
+export const getNotificationSettingsByUserEmail = async (
+  email: string,
+): Promise<NotificationSettingsShape | null> => {
+  const user = await findUserByEmail(email);
 
-//   await Setting.update(newSettings, {
-//     where: {
-//       userId,
-//     },
-//   });
-// };
+  if (!user?.id) {
+    return null;
+  }
+
+  return getNotificationSettingsByUserId(user.id);
+};
+
+export const upsertNotificationSettingsByUserId = async (
+  userId: string,
+  notification: { id: string; value: boolean }[],
+) => {
+  const settings = buildNotificationSettings(notification);
+
+  await Setting.upsert({
+    id: crypto.randomUUID(),
+    userId,
+    ...settings,
+  });
+
+  return settings;
+};

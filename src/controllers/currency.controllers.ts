@@ -6,7 +6,6 @@ import {
   findRateByFromCurrency,
   updateCurrencyStatus,
   updateCurrency,
-  updateCurrencyRates,
   addAllCurrencies,
 } from "../services/currency.services";
 import { createServerError, makeError } from "../services/error.services";

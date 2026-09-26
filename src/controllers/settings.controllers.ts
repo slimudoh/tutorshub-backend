@@ -1,75 +1,91 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
-import { JwtPayload } from "jsonwebtoken";
-import { Users } from "../interfaces/user";
 import { createServerError } from "../services/error.services";
-// import {
-//   createNotificationSettingsByUserId,
-//   findUserNotificationSettings,
-//   getNotificationSettingsByUserId,
-//   updateNotificationSettingsByUserId,
-// } from "../services/setting.services";
+import {
+  findUserNotificationSettings,
+  getNotificationSettingsByUserId,
+  upsertNotificationSettingsByUserId,
+} from "../services/setting.services";
 import { createAuditLog } from "../services/auditLog.services";
 import { findUserById } from "../services/user.services";
+import { CustomRequest } from "../types";
 
-// export const getUserSettings: RequestHandler = async (
-//   request: Request,
-//   response: Response,
-//   next: NextFunction,
-// ) => {
-//   try {
-//     const userId = (request as CustomRequest).user?.id;
+const isValidNotificationPayload = (
+  body: unknown,
+): body is { notification: { id: string; value: boolean }[] } => {
+  return (
+    !!body &&
+    typeof body === "object" &&
+    Array.isArray((body as any).notification) &&
+    (body as any).notification.every(
+      (item: any) =>
+        item && typeof item.id === "string" && typeof item.value === "boolean",
+    )
+  );
+};
 
-//     const settings = await getNotificationSettingsByUserId(userId);
+export const getUserSettings: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
 
-//     response.status(200).json({
-//       data: settings,
-//     });
-//   } catch (err) {
-//     const error = createServerError(err as Error, 500);
-//     next(error);
-//   }
-// };
+    const settings = await getNotificationSettingsByUserId(userId);
 
-// export const updateNotificationSettings: RequestHandler = async (
-//   request: Request,
-//   response: Response,
-//   next: NextFunction,
-// ) => {
-//   try {
-//     const userId = (request as CustomRequest).user?.id;
-//     const { notification } = request.body;
+    response.status(200).json({
+      data: settings,
+    });
+  } catch (err) {
+    next(createServerError(err as Error, 500));
+  }
+};
 
-//     const settings = await findUserNotificationSettings(userId);
-//     const targetUser = await findUserById(userId);
-//     let updatedSettings;
+export const updateNotificationSettings: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
 
-//     if (settings) {
-//       await updateNotificationSettingsByUserId(userId, notification);
-//       updatedSettings = await getNotificationSettingsByUserId(userId);
-//       await createAuditLog({
-//         user: JSON.stringify(targetUser),
-//         action: "UPDATE NOTIFICATION SETTINGS",
-//         oldData: JSON.stringify(settings),
-//         newData: JSON.stringify(updatedSettings),
-//         section: "SETTINGS",
-//       });
-//     } else {
-//       await createNotificationSettingsByUserId(userId, notification);
-//       updatedSettings = await getNotificationSettingsByUserId(userId);
-//       await createAuditLog({
-//         user: JSON.stringify(targetUser),
-//         action: "CREATE NOTIFICATION SETTINGS",
-//         newData: JSON.stringify(updatedSettings),
-//         section: "SETTINGS",
-//       });
-//     }
+    if (!isValidNotificationPayload(request.body)) {
+      return next(
+        createServerError(
+          new Error("`notification` must be an array of { id, value }"),
+          400,
+        ),
+      );
+    }
 
-//     response.status(200).json({
-//       message: "Notification settings updated successfully",
-//       data: updatedSettings,
-//     });
-//   } catch (err) {
-//     const error = createServerError(err as Error, 500);
-//     next(error);
-//   }
-// };
+    const { notification } = request.body;
+
+    const existing = await findUserNotificationSettings(userId);
+    const targetUser = await findUserById(userId);
+    const wasExisting = !!existing;
+
+    const updatedSettings = await upsertNotificationSettingsByUserId(
+      userId,
+      notification,
+    );
+
+    await createAuditLog({
+      user: targetUser
+        ? JSON.stringify({ id: targetUser.id, email: targetUser.emailAddress })
+        : JSON.stringify({ id: userId }),
+      action: wasExisting
+        ? "UPDATE NOTIFICATION SETTINGS"
+        : "CREATE NOTIFICATION SETTINGS",
+      ...(wasExisting ? { oldData: JSON.stringify(existing) } : {}),
+      newData: JSON.stringify(updatedSettings),
+      section: "SETTINGS",
+    });
+
+    response.status(200).json({
+      message: "Notification settings updated successfully",
+      data: updatedSettings,
+    });
+  } catch (err) {
+    next(createServerError(err as Error, 500));
+  }
+};

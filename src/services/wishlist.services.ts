@@ -1,7 +1,7 @@
 import WishList from "../models/wishlist.models";
 import Lesson from "../models/lesson.models";
 import { Op } from "sequelize";
-import { LESSON_EXCLUDED_ATTRIBUTES } from "../utils/constant";
+import { LESSON, LESSON_EXCLUDED_ATTRIBUTES } from "../utils/constant";
 import { getLessonsDependencies } from "./lesson.services";
 
 export const getWishList = async (userId: string) => {

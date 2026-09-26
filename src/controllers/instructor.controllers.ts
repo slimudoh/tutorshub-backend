@@ -1,7 +1,7 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError, makeError } from "../services/error.services";
 import { findUserById, updateUserRole } from "../services/user.services";
-import { INSTRUCTOR, ROLES, SUBSCRIPTION } from "../utils/constant";
+import { INSTRUCTOR, ROLES } from "../utils/constant";
 import {
   createNewInstructor,
   findInstructorByUserId,
@@ -19,10 +19,6 @@ import {
   paginationHelper,
   removeUnderscoreFromString,
 } from "../utils/formatter";
-import {
-  findFreePlan,
-  findUsersSubscriptionPlans,
-} from "../services/pricing.services";
 import { CustomRequest } from "../types";
 
 const VALID_INSTRUCTOR_REVIEW_STATUSES = new Set([
@@ -42,42 +38,7 @@ export const addInstructor: RequestHandler = async (
       request.body;
     const userId = (request as CustomRequest).user?.id;
 
-    const [subscriptionPlans, freePlan, instructor] = await Promise.all([
-      findUsersSubscriptionPlans(userId),
-      findFreePlan(),
-      findInstructorByUserId(userId),
-    ]);
-
-    if (subscriptionPlans.length === 0) {
-      return next(
-        makeError(
-          "You need a paid subscription to become an instructor. Please subscribe to a plan and try again.",
-          400,
-        ),
-      );
-    }
-
-    const userActiveSubscription = subscriptionPlans.find(
-      (plan) => plan.status === SUBSCRIPTION.ACTIVE,
-    );
-
-    if (!userActiveSubscription) {
-      return next(
-        makeError(
-          "You do not have an active subscription. Please subscribe to a plan and try again.",
-          400,
-        ),
-      );
-    }
-
-    if (freePlan?.id === userActiveSubscription.planId) {
-      return next(
-        makeError(
-          "You already have a free subscription. Please upgrade your subscription to become an instructor.",
-          400,
-        ),
-      );
-    }
+    const instructor = await findInstructorByUserId(userId);
 
     if (instructor?.status === INSTRUCTOR.PENDING) {
       return next(

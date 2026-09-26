@@ -23,6 +23,8 @@ import {
   enrolLesson,
   findLessonByDateTime,
   addLessonInformation,
+  fetchLessonsSeries,
+  getUserLessonSeries,
 } from "../services/lesson.services";
 import {
   addDays,
@@ -414,6 +416,27 @@ export const getAllUserLessons: RequestHandler = async (
   }
 };
 
+export const getAllUserLessonSeries: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = request.params;
+
+    const userId = (request as CustomRequest).user?.id;
+
+    const lessons = await getUserLessonSeries(userId, id);
+
+    response.status(200).json({
+      data: lessons,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
 export const getLiveLessons: RequestHandler = async (
   request: Request,
   response: Response,
@@ -422,6 +445,26 @@ export const getLiveLessons: RequestHandler = async (
   try {
     const userId = await resolveOptionalUserId(request);
     const lessons = await fetchLiveLessons(userId);
+
+    response.status(200).json({
+      data: lessons,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getLessonsSeries: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = request.params;
+
+    const userId = await resolveOptionalUserId(request);
+    const lessons = await fetchLessonsSeries(id, userId);
 
     response.status(200).json({
       data: lessons,
@@ -580,7 +623,9 @@ export const getAllInstructorLessons: RequestHandler = async (
 ) => {
   try {
     const userId = (request as CustomRequest).user?.id;
-    const lesson = await fetchAllInstructorLessons(userId);
+    const { keyword } = request.query;
+
+    const lesson = await fetchAllInstructorLessons(userId, keyword as string);
 
     response.status(200).json({
       data: lesson,
@@ -750,10 +795,11 @@ export const submitNewLesson: RequestHandler = async (
     const conflictResults = await Promise.all(conflictChecks);
 
     const hasConflict = conflictResults.some((result) => result !== null);
+
     if (hasConflict) {
       return next(
         makeError(
-          "One or more lesson dates conflict with existing lessons.",
+          `One or more lesson dates conflict with existing lesson's time or date. Please review your existing lessons time and date and try again.`,
           409,
         ),
       );
@@ -805,20 +851,20 @@ export const submitNewLesson: RequestHandler = async (
 
     try {
       let slug = toSlug(title);
-
-      lessons = await Promise.all(
-        allLessonDates.map((ld) => {
-          return addLessonInformation(
-            {
-              ...payload,
-              slug: slug + "-" + generateShortId(),
-              lessonDate: ld,
-            },
-            null,
-            transaction,
-          );
-        }),
-      );
+      let seriesId = numLessonTotal > 1 ? crypto.randomUUID() : null,
+        lessons = await Promise.all(
+          allLessonDates.map((ld) => {
+            return addLessonInformation(
+              {
+                ...payload,
+                slug: slug + "-" + generateShortId(),
+                lessonDate: ld,
+              },
+              seriesId,
+              transaction,
+            );
+          }),
+        );
 
       if (!lessons || (Array.isArray(lessons) && lessons.length === 0)) {
         throw new Error("Failed to create lesson.");

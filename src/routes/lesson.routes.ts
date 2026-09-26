@@ -16,6 +16,8 @@ import {
   getLessonsByInstructor,
   lessonEnrollment,
   cancelEnrollment,
+  getLessonsSeries,
+  getAllUserLessonSeries,
 } from "../controllers/lesson.controllers";
 import isAuth from "../middlewares/auth.middlewares";
 import isAdmin from "../middlewares/admin.middlewares";
@@ -33,11 +35,15 @@ router.get("/categories/:slug", getLessonsByCategory);
 
 router.get("/instructors/:id", getLessonsByInstructor);
 
+router.get("/series/:id", getLessonsSeries);
+
 router.get("/live", getLiveLessons);
 
 router.get("/admin", isAuth, isAdmin, getAllLessons);
 
 router.get("/users", isAuth, isUser, getAllUserLessons);
+
+router.get("/users/series/:id", isAuth, isUser, getAllUserLessonSeries);
 
 router.get("/users/all-lessons", isAuth, isInstructor, getAllInstructorLessons);
 
