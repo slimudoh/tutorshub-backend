@@ -7,7 +7,6 @@ import {
   updateCategory,
   reviewAdminCategories,
   getPopularCategories,
-  getCategoryBySlug,
 } from "../controllers/category.controllers";
 import isAdmin from "../middlewares/admin.middlewares";
 import isAuth from "../middlewares/auth.middlewares";
@@ -54,8 +53,6 @@ router.post(
   isAdmin,
   updateCategory,
 );
-
-router.get("/slugs/:slug", getCategoryBySlug);
 
 router.get("/:id", getCategory);
 

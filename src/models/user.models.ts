@@ -26,6 +26,7 @@ class User extends Model {
   declare token: string | null;
   declare tokenExpiry: Date | null;
   declare tokenExpiryStatus: string | null;
+  declare tokenVersion: number;
   declare deactivationDetails: DeletedAccount | null;
   declare subscriptionPlan: SubscriptionPlan | null;
   declare lessonAttendance: LessonAttendance | null;
@@ -118,6 +119,11 @@ User.init(
     tokenExpiryStatus: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    tokenVersion: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   },
   {

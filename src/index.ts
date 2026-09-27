@@ -142,7 +142,7 @@ sequelize
     defineAssociations();
     startCronJobs();
 
-    await User.sync();
+    await User.sync({ alter: true });
     await Transaction.sync();
     await BlackListToken.sync({ alter: true });
     await AuditLog.sync({ alter: true });

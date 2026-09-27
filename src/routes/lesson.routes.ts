@@ -31,7 +31,7 @@ const router = Router();
 
 router.get("/", getAllActiveLessons);
 
-router.get("/categories/:slug", getLessonsByCategory);
+router.get("/categories/:id", getLessonsByCategory);
 
 router.get("/instructors/:id", getLessonsByInstructor);
 

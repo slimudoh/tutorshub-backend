@@ -1,6 +1,6 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError, makeError } from "../services/error.services";
-import { findUserById, updateUserRole } from "../services/user.services";
+import { findUserById, updateUserRole, incrementTokenVersion } from "../services/user.services";
 import { INSTRUCTOR, ROLES } from "../utils/constant";
 import {
   createNewInstructor,
@@ -295,9 +295,11 @@ export const reviewInstructors: RequestHandler = async (
     await Promise.all([
       updateInstructorStatus(id, status),
       updateUserRole(targetInstructor.userId, newRole),
+      incrementTokenVersion(targetInstructor.userId),
     ]);
 
-    const notificationMessage = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}. Please log out and log in again for the change to take effect.`;
+    const notificationMessage =
+      `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)} with message "${comment}".`;
 
     await Promise.all([
       createNotification(

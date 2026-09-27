@@ -362,3 +362,13 @@ export const findAllUsers = async () => {
 export const updateUserRole = async (id: string, role: string) => {
   await User.update({ role }, { where: { id } });
 };
+
+export const incrementTokenVersion = async (id: string) => {
+  const user = await User.findByPk(id);
+  if (user) {
+    await User.update(
+      { tokenVersion: user.tokenVersion + 1 },
+      { where: { id } }
+    );
+  }
+};

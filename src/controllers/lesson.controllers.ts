@@ -43,7 +43,10 @@ import {
 } from "../utils/constant";
 import { createAuditLog } from "../services/auditLog.services";
 import { findAllActiveUsers, findUserById } from "../services/user.services";
-import { findCategoryBySlug } from "../services/category.services";
+import {
+  findCategoryById,
+  findCategoryBySlug,
+} from "../services/category.services";
 import { createBulkNotifications } from "../services/notification.services";
 import { resolveOptionalUserId } from "../services/auth.services";
 import { findInstructorByUserId } from "../services/instructor.services";
@@ -533,14 +536,16 @@ export const getLessonsByCategory: RequestHandler = async (
   try {
     const userId = await resolveOptionalUserId(request);
 
-    const { slug } = request.params;
+    const { id } = request.params;
     const { pageNumber, pageSize, keyword } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
-    const category = await findCategoryBySlug(slug);
+    let category = await findCategoryById(id);
+    category ??= await findCategoryBySlug(id);
+
     if (!category?.id) {
       return next(makeError("Category not found.", 404));
     }

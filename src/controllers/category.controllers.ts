@@ -37,31 +37,6 @@ export const getCategories: RequestHandler = async (
   }
 };
 
-export const getCategoryBySlug: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { slug } = request.params;
-
-    const category = await findCategoryBySlug(slug);
-
-    if (!category) {
-      return next(
-        makeError("Category not found. Please try again later.", 404),
-      );
-    }
-
-    response.status(200).json({
-      data: category,
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
 export const getPopularCategories: RequestHandler = async (
   request: Request,
   response: Response,
@@ -87,7 +62,8 @@ export const getCategory: RequestHandler = async (
   try {
     const { id } = request.params;
 
-    const category = await findCategoryById(id);
+    let category = await findCategoryById(id);
+    category ??= await findCategoryBySlug(id);
 
     if (!category) {
       return next(

@@ -5,6 +5,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import BlackListToken from "../models/blackListToken.models";
 import { Users } from "../interfaces/user";
 import { Request } from "express";
+import { findUserById } from "./user.services";
 
 interface IJwtPayload extends JwtPayload {
   user: Users | JwtPayload;
@@ -35,6 +36,7 @@ export const generateAuthToken = async (user: User) => {
     {
       id: user.id,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     },
     TOKEN_SECRET,
     { expiresIn: TOKEN_EXPIRY },
@@ -67,7 +69,16 @@ export const verifyToken = async (
   if (await isBlacklisted(token)) return null;
 
   try {
-    return jwt.verify(token, TOKEN_SECRET) as IJwtPayload;
+    const decoded = jwt.verify(token, TOKEN_SECRET) as IJwtPayload;
+    
+    if (decoded.tokenVersion !== undefined) {
+      const user = await findUserById(decoded.id);
+      if (!user || user.tokenVersion !== decoded.tokenVersion) {
+        return null;
+      }
+    }
+    
+    return decoded;
   } catch {
     return null;
   }

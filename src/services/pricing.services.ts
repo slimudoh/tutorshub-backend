@@ -272,7 +272,7 @@ export const renewSubscriptionPlans = async () => {
     let statusLog = null;
 
     const auditBase = {
-      action: "CHANGE SUBSCRIPTION PLAN",
+      action: "RENEW SUBSCRIPTION PLAN",
       oldData: JSON.stringify(subscription),
       section: "SUBSCRIPTION PLAN",
     };

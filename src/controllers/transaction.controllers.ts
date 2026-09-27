@@ -310,7 +310,7 @@ export const changePricingPlan: RequestHandler = async (
         },
         {
           user: JSON.stringify(user),
-          action: "CHANGE SUBSCRIPTION PLAN",
+          action: "NEW SUBSCRIPTION PLAN",
           newData: JSON.stringify(newSubscriptionPlan),
           section: "SUBSCRIPTION PLAN",
         },
