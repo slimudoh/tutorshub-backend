@@ -13,7 +13,7 @@ import {
   errorHandler,
 } from "./middlewares/error.middlewares";
 import path from "path";
-// import rateLimit from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 
 import userRouter from "./routes/user.routes";
 import authRouter from "./routes/auth.routes";
@@ -72,15 +72,15 @@ if (
   );
 }
 
-// const apiLimiter = rateLimit({
-//   windowMs: 2 * 60 * 1000, // 2 min window
-//   max: 100, // 100 requests per IP
-//   standardHeaders: true, // RateLimit-* headers
-//   legacyHeaders: false,
-//   message: {
-//     error: "Too many requests, slow down. Please try again later.",
-//   },
-// });
+const apiLimiter = rateLimit({
+  windowMs: 2 * 60 * 1000, // 2 min window
+  max: 100, // 100 requests per IP
+  standardHeaders: true, // RateLimit-* headers
+  legacyHeaders: false,
+  message: {
+    error: "Too many requests, slow down. Please try again later.",
+  },
+});
 
 const corsOptions = {
   origin: "*",
@@ -110,7 +110,7 @@ app.get("/", (request, response) => {
   });
 });
 
-// app.use("/api/v1", apiLimiter);
+app.use("/api/v1", apiLimiter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/overview", overviewRouter);
@@ -142,7 +142,7 @@ sequelize
     defineAssociations();
     startCronJobs();
 
-    await User.sync({ alter: true });
+    await User.sync();
     await Transaction.sync();
     await BlackListToken.sync({ alter: true });
     await AuditLog.sync({ alter: true });

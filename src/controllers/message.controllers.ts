@@ -116,15 +116,15 @@ export const getAllMessages: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [messages, totalRecords] = await Promise.all([
-      getMessages(keyword as string, status as string, offsetSize, newPageSize),
-      getMessages(keyword as string, status as string) as Promise<number>,
+      getMessages(keyword as string, offsetSize, newPageSize),
+      getMessages(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({
@@ -196,7 +196,7 @@ export const reviewMessages: RequestHandler = async (
       findUserById(reviewerId),
     ]);
 
-    const notificationMessage = `Your message has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
+    const notificationMessage = `Your message has been reviewed and is now ${removeUnderscoreFromString(status)} ${comment ? " with comment:  " + comment : "."}`;
 
     const messageAuthorId = targetMessage?.userId ?? "";
 

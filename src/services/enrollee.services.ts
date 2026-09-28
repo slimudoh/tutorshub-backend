@@ -8,6 +8,7 @@ import Lesson from "../models/lesson.models";
 import { getLessonsDependencies } from "./lesson.services";
 import User from "../models/user.models";
 import LessonAttendance from "../models/lessonAttendance.models";
+import { buildLessonSearchWhere } from "../utils/search";
 
 export const getAdminEnrollees = async (
   keyword?: string,
@@ -16,23 +17,11 @@ export const getAdminEnrollees = async (
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [{ title: { [Op.like]: `%${keyword}%` } }],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+  const searchWhere = buildLessonSearchWhere(keyword, ["title"]);
+  const where = status ? { ...searchWhere, status } : searchWhere;
 
   if (!offsetSize && !newPageSize) {
-    return await Lesson.count({ where: { ...where } });
+    return await Lesson.count({ where });
   }
 
   const lessons = await Lesson.findAll({

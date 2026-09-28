@@ -48,7 +48,6 @@ class Lesson extends Model {
   declare lessonReviews: Review[] | null;
   declare isReviewedByUser: boolean | null;
   declare canReview: boolean | null;
-  declare upcomingSeries: number | null;
 }
 
 Lesson.init(

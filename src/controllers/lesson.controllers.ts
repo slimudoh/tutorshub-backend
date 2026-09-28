@@ -23,8 +23,10 @@ import {
   enrolLesson,
   findLessonByDateTime,
   addLessonInformation,
-  fetchLessonsSeries,
-  getUserLessonSeries,
+  getUserUpcomingLessonsOverview,
+  getInstructorUpcomingLessonsOverview,
+  getInstructorUpcomingLessons,
+  getUserUpcomingLessons,
 } from "../services/lesson.services";
 import {
   addDays,
@@ -76,20 +78,15 @@ export const getAllLessons: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [lessons, totalRecords] = await Promise.all([
-      getAdminLessons(
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-      ),
-      getAdminLessons(keyword as string, status as string) as Promise<number>,
+      getAdminLessons(keyword as string, offsetSize, newPageSize),
+      getAdminLessons(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({
@@ -343,25 +340,15 @@ export const getAllActiveLessons: RequestHandler = async (
   try {
     const userId = await resolveOptionalUserId(request);
 
-    const { status, keyword, pageNumber, pageSize } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [lessons, totalRecords] = await Promise.all([
-      getActiveLessons(
-        status as string,
-        keyword as string,
-        userId,
-        offsetSize,
-        newPageSize,
-      ),
-      getActiveLessons(
-        status as string,
-        keyword as string,
-        userId,
-      ) as Promise<number>,
+      getActiveLessons(keyword as string, userId, offsetSize, newPageSize),
+      getActiveLessons(keyword as string, userId) as Promise<number>,
     ]);
 
     response.status(200).json({
@@ -385,25 +372,15 @@ export const getAllUserLessons: RequestHandler = async (
   try {
     const userId = (request as CustomRequest).user?.id;
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [lessons, totalRecords] = await Promise.all([
-      getUserLessons(
-        userId,
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-      ),
-      getUserLessons(
-        userId,
-        keyword as string,
-        status as string,
-      ) as Promise<number>,
+      getUserLessons(userId, keyword as string, offsetSize, newPageSize),
+      getUserLessons(userId, keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({
@@ -411,27 +388,6 @@ export const getAllUserLessons: RequestHandler = async (
       pageSize: newPageSize,
       totalRecords,
       totalPages: Math.ceil(totalRecords / newPageSize),
-      data: lessons,
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const getAllUserLessonSeries: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = request.params;
-
-    const userId = (request as CustomRequest).user?.id;
-
-    const lessons = await getUserLessonSeries(userId, id);
-
-    response.status(200).json({
       data: lessons,
     });
   } catch (err) {
@@ -448,26 +404,6 @@ export const getLiveLessons: RequestHandler = async (
   try {
     const userId = await resolveOptionalUserId(request);
     const lessons = await fetchLiveLessons(userId);
-
-    response.status(200).json({
-      data: lessons,
-    });
-  } catch (err) {
-    const error = createServerError(err as Error, 500);
-    next(error);
-  }
-};
-
-export const getLessonsSeries: RequestHandler = async (
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { id } = request.params;
-
-    const userId = await resolveOptionalUserId(request);
-    const lessons = await fetchLessonsSeries(id, userId);
 
     response.status(200).json({
       data: lessons,
@@ -793,9 +729,19 @@ export const submitNewLesson: RequestHandler = async (
       allLessonDates.push(...newCustomDays.map((date: string) => date));
     }
 
+    // Check if instructor is trying to create multiple free lessons
+    if (freeLesson === "true" && allLessonDates.length > 1) {
+      return next(
+        makeError(
+          "You can only create one free lesson at a time. Multiple lesson dates are not allowed for free lessons.",
+          400,
+        ),
+      );
+    }
+
     // Check all dates for conflicts
     const conflictChecks = allLessonDates.map((date) =>
-      findLessonByDateTime(date, startTime, endTime),
+      findLessonByDateTime(date, startTime, endTime, userId),
     );
     const conflictResults = await Promise.all(conflictChecks);
 
@@ -946,10 +892,6 @@ export const submitUpdatedLesson: RequestHandler = async (
       lessonDate,
       startTime,
       endTime,
-      lessonTotal,
-      frequency,
-      weeklyDays,
-      customDates,
       lateJoinMinutes,
       participants,
       description,
@@ -960,10 +902,6 @@ export const submitUpdatedLesson: RequestHandler = async (
       seoTags,
       fileName,
     } = request.body;
-
-    if (!lessonFrequencies.includes(frequency)) {
-      return next(makeError("Invalid frequency. Please try again later.", 400));
-    }
 
     const verifyLesson = await findLessonById(id, userId);
     if (!verifyLesson) {
@@ -982,97 +920,25 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
-    const numParticipants = Number(participants);
-    const numLessonTotal = Number(lessonTotal);
-    const numDuration = Number(duration);
-    const numLateJoinMinutes = Number(lateJoinMinutes);
+    // 30-minute lock: based on the EXISTING lesson's start time, not the new one
+    if (verifyLesson.startTime && verifyLesson.lessonDate) {
+      const existingLessonDateTime = lessonDateStartTime(
+        verifyLesson.startTime,
+        verifyLesson.lessonDate,
+      );
+      const minutesUntilStart = minutesLeftFromNow(existingLessonDateTime);
 
-    if (
-      isNaN(numParticipants) ||
-      isNaN(numLessonTotal) ||
-      isNaN(numDuration) ||
-      isNaN(numLateJoinMinutes)
-    ) {
-      return next(makeError("Invalid numeric values provided.", 400));
-    }
-
-    if (numParticipants <= 0) {
-      return next(makeError("Participants must be greater than 0.", 400));
-    }
-
-    if (numDuration <= 0) {
-      return next(makeError("Duration must be greater than 0.", 400));
-    }
-
-    if (numLateJoinMinutes < 0) {
-      return next(makeError("Late join minutes cannot be negative.", 400));
-    }
-
-    if (frequency === "daily" || frequency === "weekly") {
-      if (isNaN(numLessonTotal) || numLessonTotal <= 0) {
-        return next(makeError("Lesson total must be a positive number.", 400));
-      }
-
-      if (numLessonTotal > MAX_LESSONS_AT_ONCE) {
+      if (minutesUntilStart !== null && minutesUntilStart <= 30) {
         return next(
           makeError(
-            `You can create at most ${MAX_LESSONS_AT_ONCE} lessons at once. Please reduce the lesson total and try again.`,
+            "You can no longer update this lesson. Lessons cannot be updated within 30 minutes of the start time.",
             400,
           ),
         );
       }
-    }
-
-    const newWeekDays = weeklyDays ? JSON.parse(weeklyDays) : [];
-
-    if (frequency === "weekly" && newWeekDays.length > 0) {
-      const invalidDays = newWeekDays.filter(
-        (day: number) => day < 0 || day > 6 || !Number.isInteger(day),
-      );
-      if (invalidDays.length > 0) {
-        return next(
-          makeError(
-            "Weekly days must be integers between 0 (Sunday) and 6 (Saturday).",
-            400,
-          ),
-        );
-      }
-    }
-
-    const newCustomDays = customDates ? JSON.parse(customDates) : [];
-
-    if (
-      frequency === "custom" &&
-      (!newCustomDays || newCustomDays.length === 0)
-    ) {
-      return next(
-        makeError("Custom dates are required for custom frequency.", 400),
-      );
     }
 
     const lessonDateTime = lessonDateStartTime(startTime, lessonDate);
-    if (!lessonDateTime) {
-      return next(makeError("Invalid lesson date or start time format.", 400));
-    }
-
-    const lessonEndTime = lessonDateStartTime(endTime, lessonDate);
-    if (!lessonEndTime) {
-      return next(makeError("Invalid lesson date or end time format.", 400));
-    }
-
-    if (lessonEndTime <= lessonDateTime) {
-      return next(makeError("End time must be after start time.", 400));
-    }
-
-    const minutesUntilStart = minutesLeftFromNow(lessonDateTime);
-    if (minutesUntilStart !== null && minutesUntilStart <= 30) {
-      return next(
-        makeError(
-          "You can no longer update this lesson. Lessons cannot be updated within 30 minutes of the start time.",
-          400,
-        ),
-      );
-    }
 
     if (lessonDateTime <= new Date()) {
       return next(
@@ -1080,49 +946,11 @@ export const submitUpdatedLesson: RequestHandler = async (
       );
     }
 
-    // Generate all lesson dates based on frequency
-    const allLessonDates: string[] = [];
-    if (frequency === "once") {
-      allLessonDates.push(lessonDate);
-    } else if (frequency === "daily" && numLessonTotal > 0) {
-      const today = startOfDay(new Date());
-      allLessonDates.push(
-        ...Array.from({ length: numLessonTotal }, (_, i) =>
-          format(addDays(today, i), "yyyy-MM-dd"),
-        ),
-      );
-    } else if (frequency === "weekly" && newWeekDays.length > 0) {
-      const selectedDate = parseISO(lessonDate);
-      const today = startOfDay(new Date());
-      const allowedDaySet: Set<number> = new Set(newWeekDays);
-      const dateStrings = generateDates(
-        selectedDate,
-        numLessonTotal,
-        today,
-        allowedDaySet,
-      );
-      allLessonDates.push(...dateStrings.map((d) => d.date));
-    } else if (
-      frequency === "custom" &&
-      newCustomDays &&
-      newCustomDays.length > 0
-    ) {
-      allLessonDates.push(...newCustomDays.map((date: string) => date));
-    }
+    const lessonByDate = await findLessonByDateTime(lessonDate, startTime, id);
 
-    // Check all dates for conflicts (excluding the current lesson being updated)
-    const conflictChecks = allLessonDates.map((date) =>
-      findLessonByDateTime(date, startTime, endTime, undefined, id),
-    );
-    const conflictResults = await Promise.all(conflictChecks);
-
-    const hasConflict = conflictResults.some((result) => result !== null);
-    if (hasConflict) {
+    if (lessonByDate) {
       return next(
-        makeError(
-          "One or more lesson dates conflict with existing lessons.",
-          409,
-        ),
+        makeError("Lesson already exists for this date and time.", 409),
       );
     }
 
@@ -1132,7 +960,7 @@ export const submitUpdatedLesson: RequestHandler = async (
     if (
       !validateParticipantLimits(
         freeLesson,
-        numParticipants,
+        Number(participants),
         hasFreeLessonThisMonth,
         next,
       )
@@ -1140,18 +968,18 @@ export const submitUpdatedLesson: RequestHandler = async (
       return;
     }
 
-    const payload = {
+    const updatedLesson = await updateLessonInformation({
       id,
       title,
       category,
       level,
       language,
-      duration: numDuration.toString(),
-      lateJoinMinutes: numLateJoinMinutes.toString(),
+      duration,
+      lateJoinMinutes,
       lessonDate,
       startTime,
       endTime,
-      participants: numParticipants,
+      participants,
       description,
       freeLesson,
       lectures,
@@ -1161,34 +989,7 @@ export const submitUpdatedLesson: RequestHandler = async (
       file: request.file?.filename ?? fileName,
       externalRoomId: verifyLesson?.externalRoomId || "",
       slug: verifyLesson?.slug || "",
-    };
-
-    const transaction = await sequelize.transaction();
-    let updatedLesson: any = null;
-
-    try {
-      updatedLesson = await Promise.all(
-        allLessonDates.map((ld) => {
-          return updateLessonInformation(
-            { ...payload, lessonDate: ld },
-            transaction,
-          );
-        }),
-      );
-
-      if (
-        !updatedLesson ||
-        (Array.isArray(updatedLesson) && updatedLesson.length === 0)
-      ) {
-        throw new Error("Failed to update lesson.");
-      }
-
-      await transaction.commit();
-    } catch (err) {
-      await transaction.rollback();
-      const error = createServerError(err as Error, 500);
-      return next(error);
-    }
+    });
 
     const [user, enrollees] = await Promise.all([
       findUserById(userId),
@@ -1205,7 +1006,7 @@ export const submitUpdatedLesson: RequestHandler = async (
           .filter((enrollee) => enrollee.user?.id !== userId)
           .map((enrollee) => ({
             title: "Lesson Updated",
-            message: `The lesson ${title} has been updated by ${user?.firstName || ""} ${user?.lastName || ""}.`,
+            message: `The lesson ${title} has been updated by ${user?.firstName} ${user?.lastName}.`,
             receiverId: enrollee?.user?.id ?? "",
             senderId: null,
           })),
@@ -1453,4 +1254,116 @@ const validateParticipantLimits = (
     return false;
   }
   return true;
+};
+
+export const getUpcomingLessonsByInstructorOverview: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
+
+    const overviewData = await getInstructorUpcomingLessonsOverview(userId);
+
+    response.status(200).json({
+      data: overviewData,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getUpcomingLessonsByInstructor: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
+    const { slug } = request.params;
+
+    if (slug !== "today" && slug !== "week" && slug !== "month") {
+      return next(makeError("Invalid slug provided.", 400));
+    }
+
+    const { pageNumber, pageSize } = request.query;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
+    );
+
+    const [lessons, totalRecords] = await Promise.all([
+      getInstructorUpcomingLessons(userId, slug, offsetSize, newPageSize),
+      getInstructorUpcomingLessons(userId, slug) as Promise<number>,
+    ]);
+
+    response.status(200).json({
+      currentPage: newPageNumber,
+      pageSize: newPageSize,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
+      data: lessons,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getUpcomingLessonsByUserOverview: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
+
+    const overviewData = await getUserUpcomingLessonsOverview(userId);
+
+    response.status(200).json({
+      data: overviewData,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getUpcomingLessonsByUser: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = (request as CustomRequest).user?.id;
+    const { slug } = request.params;
+
+    if (slug !== "today" && slug !== "week" && slug !== "month") {
+      return next(makeError("Invalid slug provided.", 400));
+    }
+
+    const { pageNumber, pageSize } = request.query;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
+    );
+
+    const [lessons, totalRecords] = await Promise.all([
+      getUserUpcomingLessons(userId, slug, offsetSize, newPageSize),
+      getUserUpcomingLessons(userId, slug) as Promise<number>,
+    ]);
+
+    response.status(200).json({
+      currentPage: newPageNumber,
+      pageSize: newPageSize,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
+      data: lessons,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
 };

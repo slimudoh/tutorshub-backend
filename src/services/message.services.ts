@@ -23,7 +23,6 @@ export const addMessage = async (
 
 export const getMessages = async (
   keyword: string,
-  status: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
@@ -36,14 +35,8 @@ export const getMessages = async (
         { name: { [Op.like]: `%${keyword}%` } },
         { email: { [Op.like]: `%${keyword}%` } },
         { subject: { [Op.like]: `%${keyword}%` } },
+        { status: { [Op.like]: `%${keyword}%` } },
       ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
     };
   }
 

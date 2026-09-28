@@ -2,37 +2,18 @@ import { Op } from "@sequelize/core";
 import Currency from "../models/currency.models";
 import { CURRENCY, DEFAULT_CURRENCY } from "../utils/constant";
 import Rate from "../models/rate.models";
+import { buildCurrencySearchWhere } from "../utils/search";
 
 const failedRateResponse = (currency: string) => ({
   success: false,
   message: `We cannot update ${currency} rates at this time. Please try again later.`,
 });
 
-export const fetchAllCurrencies = async (keyword?: string, status?: string) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { country: { [Op.like]: `%${keyword}%` } },
-        { countryCode: { [Op.like]: `%${keyword}%` } },
-        { currency: { [Op.like]: `%${keyword}%` } },
-        { symbol: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+export const fetchAllCurrencies = async (keyword?: string) => {
+  const where = buildCurrencySearchWhere(keyword);
 
   return await Currency.findAll({
-    where: {
-      ...where,
-    },
+    where,
     order: [["status", "ASC"]],
     raw: true,
   });

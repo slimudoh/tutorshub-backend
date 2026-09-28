@@ -127,23 +127,15 @@ export const getAdminPricingPlans: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [pricingPlans, totalRecords] = await Promise.all([
-      fetchAdminPricingPlans(
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-      ),
-      fetchAdminPricingPlans(
-        keyword as string,
-        status as string,
-      ) as Promise<number>,
+      fetchAdminPricingPlans(keyword as string, offsetSize, newPageSize),
+      fetchAdminPricingPlans(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({

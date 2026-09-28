@@ -7,30 +7,16 @@ import {
 import crypto from "crypto";
 import User from "../models/user.models";
 import { convertMultipleCurrencies } from "./currency.services";
+import { buildTransactionSearchWhere } from "../utils/search";
 
 export const getTransactions = async (
   keyword?: string,
-  status?: string,
   offsetSize?: number,
   newPageSize?: number,
   userCurrency?: string,
   includeUser = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { currency: { [Op.like]: `%${keyword}%` } },
-        { reference: { [Op.like]: `%${keyword}%` } },
-        { channel: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = { ...where, status };
-  }
+  const where = buildTransactionSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
     return await Transaction.count({ where });
@@ -69,29 +55,12 @@ export const getUserTransactions = async (
   userId: string,
   transactionType: string,
   keyword?: string,
-  status?: string,
   offsetSize?: number,
   newPageSize?: number,
   userCurrency?: string,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { currency: { [Op.like]: `%${keyword}%` } },
-        { reference: { [Op.like]: `%${keyword}%` } },
-        { channel: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+  const searchWhere = buildTransactionSearchWhere(keyword);
+  const where = { ...searchWhere, userId, transactionType };
 
   if (!offsetSize && !newPageSize) {
     return await Transaction.count({ where });

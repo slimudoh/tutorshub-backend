@@ -1,5 +1,6 @@
 import { Op } from "@sequelize/core";
 import Newsletter from "../models/newsletter.models";
+import { buildNewsletterSearchWhere } from "../utils/search";
 
 export const findNewsletterByEmail = async (email: string) => {
   return await Newsletter.findOne({
@@ -31,13 +32,7 @@ export const getAllSubscribers = async (
   offsetSize?: number,
   newPageSize?: number,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [{ email: { [Op.like]: `%${keyword}%` } }],
-    };
-  }
+  const where = buildNewsletterSearchWhere(keyword, ["email"]);
 
   if (!offsetSize && !newPageSize) {
     return await Newsletter.count({ where });

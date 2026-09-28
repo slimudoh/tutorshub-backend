@@ -1,6 +1,10 @@
 import { RequestHandler, Request, Response, NextFunction } from "express";
 import { createServerError, makeError } from "../services/error.services";
-import { findUserById, updateUserRole, incrementTokenVersion } from "../services/user.services";
+import {
+  findUserById,
+  updateUserRole,
+  incrementTokenVersion,
+} from "../services/user.services";
 import { INSTRUCTOR, ROLES } from "../utils/constant";
 import {
   createNewInstructor,
@@ -203,20 +207,15 @@ export const getInstructors: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [instructors, totalRecords] = await Promise.all([
-      getAllInstructors(
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-      ),
-      getAllInstructors(keyword as string, status as string) as Promise<number>,
+      getAllInstructors(keyword as string, offsetSize, newPageSize),
+      getAllInstructors(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({
@@ -298,8 +297,7 @@ export const reviewInstructors: RequestHandler = async (
       incrementTokenVersion(targetInstructor.userId),
     ]);
 
-    const notificationMessage =
-      `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)} with message "${comment}".`;
+    const notificationMessage = `Your instructor application has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)} with message "${comment}".`;
 
     await Promise.all([
       createNotification(

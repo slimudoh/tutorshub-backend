@@ -6,6 +6,7 @@ import {
   USER_EXCLUDED_ATTRIBUTES,
 } from "../utils/constant";
 import User from "../models/user.models";
+import { buildReportSearchWhere } from "../utils/search";
 
 export const createReport = async (
   userId: string,
@@ -29,28 +30,11 @@ export const createReport = async (
 
 export const getUserReports = async (
   keyword: string,
-  status: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { reportType: { [Op.like]: `%${keyword}%` } },
-        { status: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+  const where = buildReportSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
     return await Report.count({ where });

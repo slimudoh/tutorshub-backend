@@ -16,8 +16,10 @@ import {
   getLessonsByInstructor,
   lessonEnrollment,
   cancelEnrollment,
-  getLessonsSeries,
-  getAllUserLessonSeries,
+  getUpcomingLessonsByInstructorOverview,
+  getUpcomingLessonsByUserOverview,
+  getUpcomingLessonsByInstructor,
+  getUpcomingLessonsByUser,
 } from "../controllers/lesson.controllers";
 import isAuth from "../middlewares/auth.middlewares";
 import isAdmin from "../middlewares/admin.middlewares";
@@ -35,15 +37,11 @@ router.get("/categories/:id", getLessonsByCategory);
 
 router.get("/instructors/:id", getLessonsByInstructor);
 
-router.get("/series/:id", getLessonsSeries);
-
 router.get("/live", getLiveLessons);
 
 router.get("/admin", isAuth, isAdmin, getAllLessons);
 
 router.get("/users", isAuth, isUser, getAllUserLessons);
-
-router.get("/users/series/:id", isAuth, isUser, getAllUserLessonSeries);
 
 router.get("/users/all-lessons", isAuth, isInstructor, getAllInstructorLessons);
 
@@ -116,10 +114,6 @@ router.patch(
   check("lessonDate").notEmpty().withMessage("Lesson Date is required."),
   check("startTime").notEmpty().withMessage("Start Time is required."),
   check("endTime").notEmpty().withMessage("End Time is required."),
-  check("lessonTotal").notEmpty().withMessage("Total Lesson is required."),
-  check("frequency").notEmpty().withMessage("Frequency is required."),
-  check("weeklyDays").notEmpty().withMessage("Weekly Days is required."),
-  check("customDates").notEmpty().withMessage("Custom Dates  is required."),
   check("lateJoinMinutes")
     .notEmpty()
     .withMessage("Late Join Minutes is required."),
@@ -141,6 +135,24 @@ router.patch(
 router.put("/lesson-enrollment/:id", isAuth, isUser, lessonEnrollment);
 
 router.delete("/lesson-enrollment/:id", isAuth, isUser, cancelEnrollment);
+
+router.get(
+  "/upcoming/instructors",
+  isAuth,
+  isInstructor,
+  getUpcomingLessonsByInstructorOverview,
+);
+
+router.get(
+  "/upcoming/instructors/:slug",
+  isAuth,
+  isInstructor,
+  getUpcomingLessonsByInstructor,
+);
+
+router.get("/upcoming/users", isAuth, isUser, getUpcomingLessonsByUserOverview);
+
+router.get("/upcoming/users/:slug", isAuth, isUser, getUpcomingLessonsByUser);
 
 router.get("/:id", getLesson);
 

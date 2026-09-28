@@ -86,12 +86,9 @@ export const getAllCategories: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, status } = request.query;
+    const { keyword } = request.query;
 
-    const category = await getAdminCategories(
-      keyword as string,
-      status as string,
-    );
+    const category = await getAdminCategories(keyword as string);
 
     response.status(200).json({
       data: category,

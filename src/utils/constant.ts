@@ -171,7 +171,7 @@ export const REVIEW_COMMENT = {
 
 export const INSTRUCTOR_EXCLUDED_ATTRIBUTES = [];
 
-export const MESSAGE_EXCLUDED_ATTRIBUTES = ["userId"];
+export const MESSAGE_EXCLUDED_ATTRIBUTES = [];
 
 export const LESSON_EXCLUDED_ATTRIBUTES = [];
 

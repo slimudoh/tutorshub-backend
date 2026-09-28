@@ -2,15 +2,10 @@ import { Op } from "@sequelize/core";
 import Category from "../models/category.models";
 import { CATEGORY, LESSON } from "../utils/constant";
 import Lesson from "../models/lesson.models";
+import { buildCategorySearchWhere } from "../utils/search";
 
 export const fetchActiveCategories = async (keyword: string) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [{ title: { [Op.like]: `%${keyword}%` } }],
-    };
-  }
+  const where = buildCategorySearchWhere(keyword, ["title"]);
 
   return await Category.findAll({
     where: { status: CATEGORY.ACTIVE, ...where },
@@ -51,24 +46,11 @@ export const fetchPopularCategories = async (limit = 10) => {
     .slice(0, limit);
 };
 
-export const getAdminCategories = async (keyword?: string, status?: string) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [{ title: { [Op.like]: `%${keyword}%` } }],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+export const getAdminCategories = async (keyword?: string) => {
+  const where = buildCategorySearchWhere(keyword, ["title", "status"]);
 
   return await Category.findAll({
-    where: { ...where },
+    where,
     order: [["updatedAt", "DESC"]],
     raw: true,
   });

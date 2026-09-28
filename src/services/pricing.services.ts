@@ -1,8 +1,7 @@
-import { literal, Op } from "@sequelize/core";
+import { Op } from "@sequelize/core";
 import PricingPlan from "../models/pricingPlan.models";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import {
-  MAIL_CONFIG,
   PRICING,
   PRICING_PLAN_EXCLUDED_ATTRIBUTES,
   SUBSCRIPTION,
@@ -12,8 +11,7 @@ import moment from "moment";
 import { format } from "date-fns";
 import { createAuditLog } from "./auditLog.services";
 import { createNotification } from "./notification.services";
-import { sendSingleMail } from "./email.services";
-import { findAllActiveUsers } from "./user.services";
+import { buildPricingSearchWhere } from "../utils/search";
 
 export const findAllPricingPlans = async (
   includeFree = true,
@@ -66,31 +64,14 @@ export const updatePricingPlanStatus = async (id: string, status: string) => {
 
 export const fetchAdminPricingPlans = async (
   keyword?: string,
-  status?: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { name: { [Op.like]: `%${keyword}%` } },
-        { description: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+  const where = buildPricingSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
-    return await PricingPlan.count({ where: { ...where } });
+    return await PricingPlan.count({ where });
   }
 
   return await PricingPlan.findAll({

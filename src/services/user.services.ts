@@ -12,6 +12,7 @@ import moment from "moment";
 import DeletedAccount from "../models/deletedAccount.models";
 import sequelize from "../utils/db";
 import pc from "picocolors";
+import { buildUserSearchWhere } from "../utils/search";
 
 export const deleteUserByEmail = async (emailAddress: string) => {
   await User.destroy({
@@ -147,35 +148,11 @@ export const resetUserPassword = async (user: User, password: string) => {
 
 export const getAllUsers = async (
   keyword: string,
-  status: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { firstName: { [Op.like]: `%${keyword}%` } },
-        { lastName: { [Op.like]: `%${keyword}%` } },
-        { emailAddress: { [Op.like]: `%${keyword}%` } },
-        { phoneNumber: { [Op.like]: `%${keyword}%` } },
-        { userName: { [Op.like]: `%${keyword}%` } },
-        { role: { [Op.like]: `%${keyword}%` } },
-        { country: { [Op.like]: `%${keyword}%` } },
-        { dateOfBirth: { [Op.like]: `%${keyword}%` } },
-        { address: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = {
-      ...where,
-      status,
-    };
-  }
+  const where = buildUserSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
     return await User.count({ where });
@@ -368,7 +345,7 @@ export const incrementTokenVersion = async (id: string) => {
   if (user) {
     await User.update(
       { tokenVersion: user.tokenVersion + 1 },
-      { where: { id } }
+      { where: { id } },
     );
   }
 };

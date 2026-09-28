@@ -20,12 +20,9 @@ export const getCurrencies: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, status } = request.query;
+    const { keyword } = request.query;
 
-    const currencies = await fetchAllCurrencies(
-      keyword as string,
-      status as string,
-    );
+    const currencies = await fetchAllCurrencies(keyword as string);
 
     response.status(200).json({
       data: currencies,

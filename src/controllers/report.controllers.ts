@@ -82,20 +82,15 @@ export const getAllReports: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [reports, totalRecords] = await Promise.all([
-      getUserReports(
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-      ),
-      getUserReports(keyword as string, status as string) as Promise<number>,
+      getUserReports(keyword as string, offsetSize, newPageSize),
+      getUserReports(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({

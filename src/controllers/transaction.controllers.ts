@@ -34,7 +34,7 @@ export const getPayments: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const userCurrency = await getUserCurrency(request);
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
@@ -45,7 +45,6 @@ export const getPayments: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.PAYMENT,
         keyword as string,
-        status as string,
         offsetSize,
         newPageSize,
         userCurrency,
@@ -54,7 +53,6 @@ export const getPayments: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.PAYMENT,
         keyword as string,
-        status as string,
       ) as Promise<number>,
     ]);
 
@@ -80,7 +78,7 @@ export const getEarnings: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const userCurrency = await getUserCurrency(request);
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
@@ -91,7 +89,7 @@ export const getEarnings: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.EARNING,
         keyword as string,
-        status as string,
+
         offsetSize,
         newPageSize,
         userCurrency,
@@ -100,7 +98,6 @@ export const getEarnings: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.EARNING,
         keyword as string,
-        status as string,
       ) as Promise<number>,
     ]);
 
@@ -126,7 +123,7 @@ export const getPayouts: RequestHandler = async (
     const userId = (request as CustomRequest).user?.id;
     const userCurrency = await getUserCurrency(request);
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
@@ -137,7 +134,6 @@ export const getPayouts: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.PAYOUT,
         keyword as string,
-        status as string,
         offsetSize,
         newPageSize,
         userCurrency,
@@ -146,7 +142,6 @@ export const getPayouts: RequestHandler = async (
         userId,
         TRANSACTION_TYPE.PAYOUT,
         keyword as string,
-        status as string,
       ) as Promise<number>,
     ]);
 
@@ -171,21 +166,15 @@ export const getAllTransactions: RequestHandler = async (
   try {
     const userCurrency = await getUserCurrency(request);
 
-    const { keyword, pageNumber, pageSize, status } = request.query;
+    const { keyword, pageNumber, pageSize } = request.query;
     const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
       pageNumber as string,
       pageSize as string,
     );
 
     const [transactions, totalRecords] = await Promise.all([
-      getTransactions(
-        keyword as string,
-        status as string,
-        offsetSize,
-        newPageSize,
-        userCurrency,
-      ),
-      getTransactions(keyword as string, status as string) as Promise<number>,
+      getTransactions(keyword as string, offsetSize, newPageSize, userCurrency),
+      getTransactions(keyword as string) as Promise<number>,
     ]);
 
     response.status(200).json({

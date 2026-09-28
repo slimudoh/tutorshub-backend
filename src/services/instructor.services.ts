@@ -1,7 +1,6 @@
 import { Op } from "@sequelize/core";
 import Instructor from "../models/instructor.models";
 import {
-  INSTRUCTOR,
   INSTRUCTOR_EXCLUDED_ATTRIBUTES,
   LESSON_EXCLUDED_ATTRIBUTES,
   REVIEW,
@@ -15,6 +14,7 @@ import LessonAttendance from "../models/lessonAttendance.models";
 import Lesson from "../models/lesson.models";
 import Review from "../models/review.models";
 import ReviewComment from "../models/reviewComment.models";
+import { buildInstructorSearchWhere } from "../utils/search";
 
 export const createNewInstructor = async (
   userId: string,
@@ -105,28 +105,11 @@ export const getInstructorById = async (
 
 export const getAllInstructors = async (
   keyword: string,
-  status: string,
   offsetSize?: number,
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { skills: { [Op.like]: `%${keyword}%` } },
-        { languages: { [Op.like]: `%${keyword}%` } },
-        { bio: { [Op.like]: `%${keyword}%` } },
-        { profession: { [Op.like]: `%${keyword}%` } },
-        { socialLinks: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
-
-  if (status) {
-    where = { ...where, status };
-  }
+  const where = buildInstructorSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
     return await Instructor.count({ where });
@@ -175,21 +158,16 @@ export const fetchActiveInstructors = async (
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { firstName: { [Op.like]: `%${keyword}%` } },
-        { lastName: { [Op.like]: `%${keyword}%` } },
-        { skills: { [Op.like]: `%${keyword}%` } },
-        { languages: { [Op.like]: `%${keyword}%` } },
-        { bio: { [Op.like]: `%${keyword}%` } },
-        { profession: { [Op.like]: `%${keyword}%` } },
-        { socialLinks: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
+  // Note: fetchActiveInstructors excludes status from search to avoid filtering by status
+  const where = buildInstructorSearchWhere(keyword, [
+    "firstName",
+    "lastName",
+    "skills",
+    "languages",
+    "bio",
+    "profession",
+    "socialLinks",
+  ]);
 
   if (!offsetSize && !newPageSize) {
     return await Instructor.count({ where });

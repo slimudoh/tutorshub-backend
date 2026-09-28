@@ -1,6 +1,7 @@
 import { Op } from "@sequelize/core";
 import AuditLog from "../models/auditLog.models";
 import crypto from "crypto";
+import { buildAuditLogSearchWhere } from "../utils/search";
 
 export const createAuditLog = async (payload: {
   user?: string;
@@ -47,19 +48,7 @@ export const getAuditLogs = async (
   offsetSize?: number,
   newPageSize?: number,
 ) => {
-  let where = {};
-
-  if (keyword) {
-    where = {
-      [Op.or]: [
-        { user: { [Op.like]: `%${keyword}%` } },
-        { action: { [Op.like]: `%${keyword}%` } },
-        { oldData: { [Op.like]: `%${keyword}%` } },
-        { newData: { [Op.like]: `%${keyword}%` } },
-        { section: { [Op.like]: `%${keyword}%` } },
-      ],
-    };
-  }
+  const where = buildAuditLogSearchWhere(keyword);
 
   if (!offsetSize && !newPageSize) {
     return await AuditLog.count({ where });
