@@ -32,7 +32,6 @@ router.post(
   "/",
   imageUpload.single("file"),
   check("report").notEmpty().withMessage("Report type is required."),
-  check("session").notEmpty().withMessage("Session ID is required."),
   check("description").notEmpty().withMessage("Description is required."),
   check("date").notEmpty().withMessage("Date of incident is required."),
   Validate,

@@ -4,7 +4,6 @@ import sequelize from "../utils/db";
 class Report extends Model {
   declare id: string | null;
   declare userId: string | null;
-  declare sessionId: string | null;
   declare reportType: string | null;
   declare description: string | null;
   declare incidentDate: string | null;
@@ -22,10 +21,6 @@ Report.init(
       primaryKey: true,
     },
     userId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-    },
-    sessionId: {
       type: DataTypes.UUID,
       allowNull: true,
     },

@@ -4,7 +4,7 @@ import { Op } from "sequelize";
  * ============================================
  * Model-Specific Searchable Field Configurations
  * ============================================
- * 
+ *
  * Define searchable fields for each model here.
  * This centralizes search behavior and makes it easy to maintain.
  */
@@ -129,7 +129,6 @@ export const REPORT_SEARCHABLE_FIELDS = [
   "status",
   "incidentDate",
   "evidenceFile",
-  "sessionId",
   "description",
 ] as const;
 
@@ -160,19 +159,19 @@ export type SearchableField = string;
 
 /**
  * Builds a Sequelize WHERE clause for searching across fields.
- * 
+ *
  * @param keyword - The search term to match against fields
  * @param fields - Array of fields to search (e.g., LESSON_SEARCHABLE_FIELDS)
  * @returns Sequelize WHERE clause object, or empty object if no keyword provided
- * 
+ *
  * @example
  * // Search Lesson by keyword across all lesson fields
  * const where = buildSearchWhere("math", LESSON_SEARCHABLE_FIELDS);
- * 
+ *
  * @example
  * // Search Category by keyword across title and status
  * const where = buildSearchWhere("science", CATEGORY_SEARCHABLE_FIELDS);
- * 
+ *
  * @example
  * // Search with custom fields
  * const where = buildSearchWhere("test", ["title", "description"]);
@@ -205,7 +204,7 @@ export const buildSearchWhere = (
 /**
  * Convenience function for building Lesson search WHERE clause.
  * Uses all LESSON_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to LESSON_SEARCHABLE_FIELDS)
  */
@@ -219,7 +218,7 @@ export const buildLessonSearchWhere = (
 /**
  * Convenience function for building Category search WHERE clause.
  * Uses all CATEGORY_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to CATEGORY_SEARCHABLE_FIELDS)
  */
@@ -233,7 +232,7 @@ export const buildCategorySearchWhere = (
 /**
  * Convenience function for building User search WHERE clause.
  * Uses all USER_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to USER_SEARCHABLE_FIELDS)
  */
@@ -247,7 +246,7 @@ export const buildUserSearchWhere = (
 /**
  * Convenience function for building Newsletter search WHERE clause.
  * Uses all NEWSLETTER_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to NEWSLETTER_SEARCHABLE_FIELDS)
  */
@@ -261,7 +260,7 @@ export const buildNewsletterSearchWhere = (
 /**
  * Convenience function for building AuditLog search WHERE clause.
  * Uses all AUDIT_LOG_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to AUDIT_LOG_SEARCHABLE_FIELDS)
  */
@@ -275,7 +274,7 @@ export const buildAuditLogSearchWhere = (
 /**
  * Convenience function for building Currency search WHERE clause.
  * Uses all CURRENCY_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to CURRENCY_SEARCHABLE_FIELDS)
  */
@@ -289,7 +288,7 @@ export const buildCurrencySearchWhere = (
 /**
  * Convenience function for building Instructor search WHERE clause.
  * Uses all INSTRUCTOR_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to INSTRUCTOR_SEARCHABLE_FIELDS)
  */
@@ -303,7 +302,7 @@ export const buildInstructorSearchWhere = (
 /**
  * Convenience function for building PricingPlan search WHERE clause.
  * Uses all PRICING_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to PRICING_SEARCHABLE_FIELDS)
  */
@@ -317,7 +316,7 @@ export const buildPricingSearchWhere = (
 /**
  * Convenience function for building Report search WHERE clause.
  * Uses all REPORT_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to REPORT_SEARCHABLE_FIELDS)
  */
@@ -331,7 +330,7 @@ export const buildReportSearchWhere = (
 /**
  * Convenience function for building Transaction search WHERE clause.
  * Uses all TRANSACTION_SEARCHABLE_FIELDS by default.
- * 
+ *
  * @param keyword - The search term
  * @param fields - Optional custom fields to search (defaults to TRANSACTION_SEARCHABLE_FIELDS)
  */
@@ -344,12 +343,12 @@ export const buildTransactionSearchWhere = (
 
 /**
  * Builds a Sequelize WHERE clause with additional conditions combined with search.
- * 
+ *
  * @param keyword - The search term
  * @param additionalWhere - Additional WHERE conditions to merge with search
  * @param fields - Fields to search
  * @returns Combined WHERE clause
- * 
+ *
  * @example
  * const where = buildSearchWhereWithConditions("math", { status: "ACTIVE" }, LESSON_SEARCHABLE_FIELDS);
  * // Result: { [Op.and]: [{ [Op.or]: [...] }, { status: "ACTIVE" }] }
@@ -381,4 +380,4 @@ export const buildSearchWhereWithConditions = (
  */
 
 // Re-export for existing code that may use these
-export type LessonSearchableField = typeof LESSON_SEARCHABLE_FIELDS[number];
+export type LessonSearchableField = (typeof LESSON_SEARCHABLE_FIELDS)[number];

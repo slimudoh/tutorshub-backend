@@ -31,7 +31,7 @@ export const submitReport: RequestHandler = async (
   next: NextFunction,
 ) => {
   try {
-    const { report, session, description, date } = request.body;
+    const { report, description, date } = request.body;
 
     const userId = (request as CustomRequest).user?.id;
 
@@ -40,7 +40,6 @@ export const submitReport: RequestHandler = async (
       createReport(
         userId,
         report,
-        session,
         description,
         date,
         request.file?.filename ?? null,
@@ -158,7 +157,7 @@ export const reviewReports: RequestHandler = async (
 
     await updateReportStatus(id, status);
 
-    const notificationMessage = `Your report has been reviewed and the status has been updated to ${removeUnderscoreFromString(status)}. ${comment}`;
+    const notificationMessage = `Your message has been reviewed and is now ${removeUnderscoreFromString(status)} ${comment ? " with comment:  " + comment : "."}`;
 
     const reportAuthorId = targetReport?.userId || "";
 
@@ -178,11 +177,6 @@ export const reviewReports: RequestHandler = async (
     ]);
 
     response.status(200).json({ message: "Report reviewed successfully." });
-
-    // sendUserEmailNotification({
-    //   emailAddress: targetUser?.emailAddress || "",
-    //   userName: targetUser?.firstName || "",
-    // });
   } catch (err) {
     const error = createServerError(err as Error, 500);
     next(error);

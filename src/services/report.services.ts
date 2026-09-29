@@ -11,7 +11,6 @@ import { buildReportSearchWhere } from "../utils/search";
 export const createReport = async (
   userId: string,
   report: string,
-  session: string,
   description: string,
   date: string,
   evidenceFile: string | null,
@@ -19,7 +18,6 @@ export const createReport = async (
   return await Report.create({
     id: crypto.randomUUID(),
     userId,
-    sessionId: session,
     description,
     incidentDate: date,
     reportType: report,
