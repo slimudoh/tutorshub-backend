@@ -352,7 +352,7 @@ export const updatePricingPlans: RequestHandler = async (
       ),
     ]);
 
-    const updatedPlan = await updatePricingPlan({
+    await updatePricingPlan({
       id,
       title,
       description,
@@ -370,7 +370,16 @@ export const updatePricingPlans: RequestHandler = async (
       user: JSON.stringify(updater),
       action: "UPDATE PRICING PLAN",
       oldData: JSON.stringify(plan),
-      newData: JSON.stringify(updatedPlan),
+      newData: JSON.stringify({
+        message: "Pricing plan updated",
+        title,
+        description,
+        currency: convertedPlan.currency,
+        amount: convertedPlan.amount,
+        amountPerSession: convertedSession.amount,
+        billingCycle,
+        lessonLimit,
+      }),
       section: "PRICING PLAN",
     });
 
@@ -405,7 +414,7 @@ export const autoRenewSubscription = async (
       return next(makeError("Auto renew is already set to this value.", 400));
     }
 
-    const updatedSubscriptionPlan = await updateSubscriptionAutoRenew(
+    await updateSubscriptionAutoRenew(
       id,
       userId,
       autoRenew,
@@ -415,7 +424,10 @@ export const autoRenewSubscription = async (
       user: JSON.stringify(user),
       action: "UPDATE SUBSCRIPTION AUTO RENEW",
       oldData: JSON.stringify(subscriptionPlan),
-      newData: JSON.stringify(updatedSubscriptionPlan),
+      newData: JSON.stringify({
+        message: "Subscription auto renew updated",
+        autoRenew,
+      }),
       section: "SUBSCRIPTION PLAN",
     });
 

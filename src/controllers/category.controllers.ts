@@ -239,7 +239,7 @@ export const updateCategory: RequestHandler = async (
       await deleteFile(category.image);
     }
 
-    const updatedCategory = await updateCurrentCategory({
+    await updateCurrentCategory({
       id,
       title,
       description,
@@ -251,7 +251,12 @@ export const updateCategory: RequestHandler = async (
       user: JSON.stringify(updater),
       action: "UPDATE CATEGORY",
       oldData: JSON.stringify(category),
-      newData: JSON.stringify(updatedCategory),
+      newData: JSON.stringify({
+        message: "Category updated",
+        title,
+        description,
+        image: request.file?.filename ?? category.image ?? null,
+      }),
       section: "CATEGORY",
     });
 

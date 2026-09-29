@@ -16,6 +16,8 @@ import {
   getLessonsByInstructor,
   lessonEnrollment,
   cancelEnrollment,
+  getUpcomingLessonsByAdminOverview,
+  getUpcomingLessonsByAdmin,
   getUpcomingLessonsByInstructorOverview,
   getUpcomingLessonsByUserOverview,
   getUpcomingLessonsByInstructor,
@@ -135,6 +137,15 @@ router.patch(
 router.put("/lesson-enrollment/:id", isAuth, isUser, lessonEnrollment);
 
 router.delete("/lesson-enrollment/:id", isAuth, isUser, cancelEnrollment);
+
+router.get(
+  "/upcoming/admin",
+  isAuth,
+  isAdmin,
+  getUpcomingLessonsByAdminOverview,
+);
+
+router.get("/upcoming/admin/:slug", isAuth, isAdmin, getUpcomingLessonsByAdmin);
 
 router.get(
   "/upcoming/instructors",

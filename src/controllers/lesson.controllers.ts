@@ -27,6 +27,8 @@ import {
   getInstructorUpcomingLessonsOverview,
   getInstructorUpcomingLessons,
   getUserUpcomingLessons,
+  getAdminUpcomingLessonsOverview,
+  getAdminUpcomingLessons,
 } from "../services/lesson.services";
 import {
   addDays,
@@ -848,24 +850,31 @@ export const submitNewLesson: RequestHandler = async (
       return next(makeError("User not found. Please try again later.", 404));
     }
 
-    await Promise.all([
-      createBulkNotifications(
-        users
-          .filter((usr) => usr.emailAddress !== user?.emailAddress)
-          .map((usr) => ({
-            title: "New Lesson",
-            message: `A new lesson has been created ${title} by ${user?.firstName || ""} ${user?.lastName || ""}.`,
-            receiverId: usr.id ?? "",
-            senderId: null,
-          })),
-      ),
-      createAuditLog({
-        user: JSON.stringify(user),
-        action: "CREATE LESSON",
-        newData: JSON.stringify(lessons),
-        section: "LESSON",
-      }),
-    ]);
+    // await Promise.all([
+    //   createBulkNotifications(
+    //     users
+    //       .filter((usr) => usr.emailAddress !== user?.emailAddress)
+    //       .map((usr) => ({
+    //         title: "New Lesson",
+    //         message: `A new lesson has been created ${title} by ${user?.firstName || ""} ${user?.lastName || ""}.`,
+    //         receiverId: usr.id ?? "",
+    //         senderId: null,
+    //       })),
+    //   ),
+    //   createAuditLog({
+    //     user: JSON.stringify(user),
+    //     action: "CREATE LESSON",
+    //     newData: JSON.stringify(lessons),
+    //     section: "LESSON",
+    //   }),
+    // ]);
+
+    await createAuditLog({
+      user: JSON.stringify(user),
+      action: "CREATE LESSON",
+      newData: JSON.stringify(lessons),
+      section: "LESSON",
+    });
 
     response.status(201).json({ message: "Lesson published successfully." });
   } catch (err) {
@@ -968,7 +977,7 @@ export const submitUpdatedLesson: RequestHandler = async (
       return;
     }
 
-    const updatedLesson = await updateLessonInformation({
+    await updateLessonInformation({
       id,
       title,
       category,
@@ -1014,7 +1023,17 @@ export const submitUpdatedLesson: RequestHandler = async (
       createAuditLog({
         user: JSON.stringify(user),
         action: "UPDATE LESSON",
-        newData: JSON.stringify(updatedLesson),
+        newData: JSON.stringify({
+          message: "Lesson updated",
+          title,
+          category,
+          level,
+          language,
+          duration,
+          participants,
+          description,
+          freeLesson,
+        }),
         section: "LESSON",
       }),
     ]);
@@ -1254,6 +1273,59 @@ const validateParticipantLimits = (
     return false;
   }
   return true;
+};
+
+export const getUpcomingLessonsByAdminOverview: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const overviewData = await getAdminUpcomingLessonsOverview();
+
+    response.status(200).json({
+      data: overviewData,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
+};
+
+export const getUpcomingLessonsByAdmin: RequestHandler = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { slug } = request.params;
+
+    if (slug !== "today" && slug !== "week" && slug !== "month") {
+      return next(makeError("Invalid slug provided.", 400));
+    }
+
+    const { pageNumber, pageSize } = request.query;
+    const { newPageNumber, newPageSize, offsetSize } = paginationHelper(
+      pageNumber as string,
+      pageSize as string,
+    );
+
+    const [lessons, totalRecords] = await Promise.all([
+      getAdminUpcomingLessons(slug, offsetSize, newPageSize),
+      getAdminUpcomingLessons(slug) as Promise<number>,
+    ]);
+
+    response.status(200).json({
+      currentPage: newPageNumber,
+      pageSize: newPageSize,
+      totalRecords,
+      totalPages: Math.ceil(totalRecords / newPageSize),
+      data: lessons,
+    });
+  } catch (err) {
+    const error = createServerError(err as Error, 500);
+    next(error);
+  }
 };
 
 export const getUpcomingLessonsByInstructorOverview: RequestHandler = async (

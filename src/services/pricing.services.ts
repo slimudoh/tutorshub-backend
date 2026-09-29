@@ -260,11 +260,13 @@ export const renewSubscriptionPlans = async () => {
 
     if (subscription.autoRenew) {
       // Renew the subscription for another month
+      const newStartDate = new Date();
+      const newEndDate = oneMonthFromNow();
       updateLog = await updateUserSubscription(
         subscription.userId,
         subscription.id,
-        new Date(),
-        oneMonthFromNow(),
+        newStartDate,
+        newEndDate,
       );
 
       // Only update status for paid plans — free plan status is managed elsewhere
@@ -279,14 +281,21 @@ export const renewSubscriptionPlans = async () => {
       if (updateLog) {
         await createAuditLog({
           ...auditBase,
-          newData: JSON.stringify(updateLog),
+          newData: JSON.stringify({
+            message: "Subscription renewed",
+            newStartDate: newStartDate.toISOString(),
+            newEndDate: newEndDate.toISOString(),
+          }),
         });
       }
 
       if (statusLog) {
         await createAuditLog({
           ...auditBase,
-          newData: JSON.stringify(statusLog),
+          newData: JSON.stringify({
+            message: "Subscription status updated",
+            newStatus: SUBSCRIPTION.ACTIVE,
+          }),
         });
       }
     } else {
@@ -300,7 +309,10 @@ export const renewSubscriptionPlans = async () => {
       if (statusLog) {
         await createAuditLog({
           ...auditBase,
-          newData: JSON.stringify(statusLog),
+          newData: JSON.stringify({
+            message: "Subscription expired",
+            newStatus: SUBSCRIPTION.EXPIRED,
+          }),
         });
       }
     }

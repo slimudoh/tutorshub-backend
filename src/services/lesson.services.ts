@@ -16,16 +16,7 @@ import {
 } from "../utils/constant";
 import { findAllUsers, findUserById } from "./user.services";
 import { findAllCategories, findCategoryById } from "./category.services";
-import {
-  format,
-  startOfDay,
-  endOfDay,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  isAfter,
-} from "date-fns";
+import { format } from "date-fns";
 import { getWishListByLessonId } from "./wishlist.services";
 import LessonEnrollment from "../models/lessonEnrollment.models";
 import {
@@ -65,6 +56,16 @@ import {
   AddLessonLectureInterface,
   UpdateLessonLectureInterface,
 } from "../types";
+import {
+  getTimePeriods,
+  getDateEndFromSlug,
+  filterUpcomingLessons,
+  UPCOMING_LESSON_BASE_STATUS,
+  buildUpcomingLessonWhere,
+  countUpcomingLessonsForPeriod,
+  fetchUpcomingLessons,
+  UpcomingLessonScope,
+} from "../utils/lesson";
 
 export const findLessonById = async (
   id: string,
@@ -578,26 +579,34 @@ export const getLessonsDependencies = async (
 
   const lessonIds = lessons.map((l) => l.id);
 
-  const [users, reviews, instructors, categories, wishlists, enrollments] =
-    await Promise.all([
-      findAllUsers(),
-      Review.findAll({
-        where: { lessonId: { [Op.in]: lessonIds }, status: REVIEW.ACTIVE },
-        raw: true,
-      }),
-      findAllInstructors(),
-      findAllCategories(),
-      userId
-        ? WishList.findAll({ where: { userId }, raw: true })
-        : Promise.resolve([]),
-      LessonEnrollment.findAll({
-        where: {
-          lessonId: { [Op.in]: lessonIds },
-          status: LESSON_ENROLLMENT.ACTIVE,
-        },
-        raw: true,
-      }),
-    ]);
+  const [
+    users,
+    reviews,
+    instructors,
+    categories,
+    wishlists,
+    enrollments,
+    attendance,
+  ] = await Promise.all([
+    findAllUsers(),
+    Review.findAll({
+      where: { lessonId: { [Op.in]: lessonIds }, status: REVIEW.ACTIVE },
+      raw: true,
+    }),
+    findAllInstructors(),
+    findAllCategories(),
+    userId
+      ? WishList.findAll({ where: { userId }, raw: true })
+      : Promise.resolve([]),
+    LessonEnrollment.findAll({
+      where: { lessonId: { [Op.in]: lessonIds } },
+      raw: true,
+    }),
+    LessonAttendance.findAll({
+      where: { lessonId: { [Op.in]: lessonIds } },
+      raw: true,
+    }),
+  ]);
 
   lessons.forEach((lesson) => {
     lesson.user = users.find((u) => u.id === lesson.userId) || null;
@@ -611,9 +620,15 @@ export const getLessonsDependencies = async (
     lesson.rating = calcRating(lessonReviews);
 
     const lessonEnrollments = enrollments.filter(
-      (e) => e.lessonId === lesson.id,
+      (e) => e.lessonId === lesson.id && lesson.userId !== e.userId,
     );
     lesson.enrollees = lessonEnrollments.length;
+
+    const lessonAttendance = attendance.filter(
+      (e) => e.lessonId === lesson.id && lesson.userId !== e.userId,
+    );
+    lesson.attendees = lessonAttendance.length;
+
     lesson.seatsLeft = lesson.maxStudents
       ? lesson.maxStudents - lessonEnrollments.length
       : 0;
@@ -633,20 +648,35 @@ export const getLessonDependencies = async (
   lesson: Lesson,
   userId: string | null = null,
 ) => {
-  const [users, category, instructor, enrolledLesson, reviews] =
-    await Promise.all([
-      findAllUsers(),
-      findCategoryById(lesson.categoryId || ""),
-      findInstructorByUserId(lesson.userId || ""),
-      LessonEnrollment.findAll({
-        where: { lessonId: lesson.id, status: LESSON_ENROLLMENT.ACTIVE },
-        raw: true,
-      }),
-      Review.findAll({
-        where: { lessonId: lesson.id, status: REVIEW.ACTIVE },
-        raw: true,
-      }),
-    ]);
+  const [
+    users,
+    category,
+    instructor,
+    enrolledLesson,
+    reviews,
+    enrollments,
+    attendance,
+  ] = await Promise.all([
+    findAllUsers(),
+    findCategoryById(lesson.categoryId || ""),
+    findInstructorByUserId(lesson.userId || ""),
+    LessonEnrollment.findAll({
+      where: { lessonId: lesson.id, status: LESSON_ENROLLMENT.ACTIVE },
+      raw: true,
+    }),
+    Review.findAll({
+      where: { lessonId: lesson.id, status: REVIEW.ACTIVE },
+      raw: true,
+    }),
+    LessonEnrollment.findAll({
+      where: { lessonId: lesson.id },
+      raw: true,
+    }),
+    LessonAttendance.findAll({
+      where: { lessonId: lesson.id },
+      raw: true,
+    }),
+  ]);
 
   const reviewComments = await ReviewComment.findAll({
     where: {
@@ -696,6 +726,8 @@ export const getLessonDependencies = async (
   );
   lesson.wishlist = false;
   lesson.enrolled = false;
+  lesson.enrollees = enrollments.length;
+  lesson.attendees = attendance.length;
 
   if (userId) {
     const [wishlist, enrolled, userReview] = await Promise.all([
@@ -1201,61 +1233,51 @@ export const updateLessonInformation = async (
   );
 };
 
-export const getInstructorUpcomingLessonsOverview = async (userId: string) => {
-  const now = new Date();
+export const getAdminUpcomingLessonsOverview = async () => {
+  const { now, todayEnd, weekEnd, monthEnd } = getTimePeriods();
 
-  const todayEnd = endOfDay(now);
-  const weekEnd = endOfWeek(now);
-  const monthEnd = endOfMonth(now);
-
-  const baseWhere = {
-    userId,
-    status: { [Op.notIn]: [LESSON.SUSPENDED, LESSON.DEACTIVATED] },
-  };
-
-  const getUpcomingCount = async (dateEnd: Date) => {
-    const lessons = await Lesson.findAll({
-      where: {
-        ...baseWhere,
-        lessonDate: {
-          [Op.gte]: now,
-          [Op.lte]: dateEnd,
-        },
-      },
-      raw: true,
-    });
-
-    return lessons.filter((lesson) => {
-      if (!lesson.lessonDate) return false;
-      const lessonDateTime = lessonDateStartTime(
-        lesson.startTime || "12:00 AM",
-        new Date(lesson.lessonDate),
-      );
-      return isAfter(lessonDateTime, now);
-    }).length;
+  const countForPeriod = async (dateEnd: Date) => {
+    const where = {
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: now, [Op.lte]: dateEnd },
+    };
+    const lessons = await Lesson.findAll({ where, raw: true });
+    return filterUpcomingLessons(lessons).length;
   };
 
   const [todayLessons, weekLessons, monthLessons] = await Promise.all([
-    getUpcomingCount(todayEnd),
-    getUpcomingCount(
-      weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd,
-    ),
-    getUpcomingCount(monthEnd),
+    countForPeriod(todayEnd),
+    countForPeriod(weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd),
+    countForPeriod(monthEnd),
   ]);
 
-  return {
-    todayLessons,
-    weekLessons,
-    monthLessons,
+  return { todayLessons, weekLessons, monthLessons };
+};
+
+export const getInstructorUpcomingLessonsOverview = async (userId: string) => {
+  const { now, todayEnd, weekEnd, monthEnd } = getTimePeriods();
+
+  const countForPeriod = async (dateEnd: Date) => {
+    const where = {
+      userId,
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: now, [Op.lte]: dateEnd },
+    };
+    const lessons = await Lesson.findAll({ where, raw: true });
+    return filterUpcomingLessons(lessons).length;
   };
+
+  const [todayLessons, weekLessons, monthLessons] = await Promise.all([
+    countForPeriod(todayEnd),
+    countForPeriod(weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd),
+    countForPeriod(monthEnd),
+  ]);
+
+  return { todayLessons, weekLessons, monthLessons };
 };
 
 export const getUserUpcomingLessonsOverview = async (userId: string) => {
-  const now = new Date();
-
-  const todayEnd = endOfDay(now);
-  const weekEnd = endOfWeek(now);
-  const monthEnd = endOfMonth(now);
+  const { now, todayEnd, weekEnd, monthEnd } = getTimePeriods();
 
   const enrollments = await LessonEnrollment.findAll({
     where: {
@@ -1272,46 +1294,52 @@ export const getUserUpcomingLessonsOverview = async (userId: string) => {
 
   const lessonIds = enrollments.map((e) => e.lessonId);
 
-  const baseWhere = {
-    id: { [Op.in]: lessonIds },
-    status: { [Op.notIn]: [LESSON.SUSPENDED, LESSON.DEACTIVATED] },
-  };
-
-  const getUpcomingCount = async (dateEnd: Date) => {
-    const lessons = await Lesson.findAll({
-      where: {
-        ...baseWhere,
-        lessonDate: {
-          [Op.gte]: now,
-          [Op.lte]: dateEnd,
-        },
-      },
-      raw: true,
-    });
-
-    return lessons.filter((lesson) => {
-      if (!lesson.lessonDate) return false;
-      const lessonDateTime = lessonDateStartTime(
-        lesson.startTime || "12:00 AM",
-        new Date(lesson.lessonDate),
-      );
-      return isAfter(lessonDateTime, now);
-    }).length;
+  const countForPeriod = async (dateEnd: Date) => {
+    const where = {
+      id: { [Op.in]: lessonIds },
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: now, [Op.lte]: dateEnd },
+    };
+    const lessons = await Lesson.findAll({ where, raw: true });
+    return filterUpcomingLessons(lessons).length;
   };
 
   const [todayLessons, weekLessons, monthLessons] = await Promise.all([
-    getUpcomingCount(todayEnd),
-    getUpcomingCount(
-      weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd,
-    ),
-    getUpcomingCount(monthEnd),
+    countForPeriod(todayEnd),
+    countForPeriod(weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd),
+    countForPeriod(monthEnd),
   ]);
 
-  return {
-    todayLessons,
-    weekLessons,
-    monthLessons,
-  };
+  return { todayLessons, weekLessons, monthLessons };
+};
+
+export const getAdminUpcomingLessons = async (
+  slug: string,
+  offsetSize?: number,
+  newPageSize?: number,
+  excludeAttributes = true,
+) => {
+  if (!offsetSize && !newPageSize) {
+    const dateEnd = getDateEndFromSlug(slug);
+    const periods = getTimePeriods();
+    const where = {
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: periods.now, [Op.lte]: dateEnd },
+    };
+    return await Lesson.count({ where });
+  }
+
+  const lessons = await fetchUpcomingLessons(
+    "admin",
+    null,
+    slug,
+    offsetSize,
+    newPageSize,
+    excludeAttributes,
+  );
+
+  const filtered = filterUpcomingLessons(lessons);
+  return getLessonsDependencies(filtered, null);
 };
 
 export const getInstructorUpcomingLessons = async (
@@ -1321,64 +1349,27 @@ export const getInstructorUpcomingLessons = async (
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
-  const weekStart = startOfWeek(now);
-  const weekEnd = endOfWeek(now);
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
-  const baseWhere = {
-    userId,
-    status: { [Op.notIn]: [LESSON.SUSPENDED, LESSON.DEACTIVATED] },
-  };
-
-  let dateEnd;
-  if (slug === "today") {
-    dateEnd = todayEnd;
-  } else if (slug === "week") {
-    dateEnd = weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd;
-  } else if (slug === "month") {
-    dateEnd = monthEnd;
-  }
-
-  const where = {
-    ...baseWhere,
-    lessonDate: {
-      [Op.gte]: now,
-      [Op.lte]: dateEnd,
-    },
-  };
-
   if (!offsetSize && !newPageSize) {
+    const dateEnd = getDateEndFromSlug(slug);
+    const periods = getTimePeriods();
+    const where = {
+      userId,
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: periods.now, [Op.lte]: dateEnd },
+    };
     return await Lesson.count({ where });
   }
 
-  const filterUpcomingLessons = (lessons: any[]) => {
-    return lessons.filter((lesson) => {
-      if (!lesson.lessonDate) return false;
-      const lessonDateTime = lessonDateStartTime(
-        lesson.startTime || "12:00 AM",
-        new Date(lesson.lessonDate),
-      );
-      return isAfter(lessonDateTime, now);
-    });
-  };
-
-  let lessons = await Lesson.findAll({
-    where,
-    order: [["updatedAt", "DESC"]],
-    ...(offsetSize !== undefined && { offset: offsetSize }),
-    ...(newPageSize !== undefined && { limit: newPageSize }),
-    ...(excludeAttributes && {
-      attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
-    }),
-    raw: true,
-  });
-
-  lessons = await getLessonsDependencies(lessons, null);
-
-  return filterUpcomingLessons(lessons);
+  const lessons = await fetchUpcomingLessons(
+    "instructor",
+    userId,
+    slug,
+    offsetSize,
+    newPageSize,
+    excludeAttributes,
+  );
+  const filtered = filterUpcomingLessons(lessons);
+  return getLessonsDependencies(filtered, null);
 };
 
 export const getUserUpcomingLessons = async (
@@ -1388,78 +1379,38 @@ export const getUserUpcomingLessons = async (
   newPageSize?: number,
   excludeAttributes = true,
 ) => {
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
-  const weekStart = startOfWeek(now);
-  const weekEnd = endOfWeek(now);
-  const monthStart = startOfMonth(now);
-  const monthEnd = endOfMonth(now);
-
-  const enrollments = await LessonEnrollment.findAll({
-    where: {
-      userId,
-      status: LESSON_ENROLLMENT.ACTIVE,
-    },
-    attributes: ["lessonId"],
-    raw: true,
-  });
-
-  if (!enrollments.length) {
-    return { todayLessons: [], weekLessons: [], monthLessons: [] };
-  }
-
-  const lessonIds = enrollments.map((e) => e.lessonId);
-
-  const baseWhere = {
-    id: { [Op.in]: lessonIds },
-    status: { [Op.notIn]: [LESSON.SUSPENDED, LESSON.DEACTIVATED] },
-  };
-
-  let dateEnd;
-  if (slug === "today") {
-    dateEnd = todayEnd;
-  } else if (slug === "week") {
-    dateEnd = weekEnd.getTime() < monthEnd.getTime() ? weekEnd : monthEnd;
-  } else if (slug === "month") {
-    dateEnd = monthEnd;
-  }
-
-  const where = {
-    ...baseWhere,
-    lessonDate: {
-      [Op.gte]: now,
-      [Op.lte]: dateEnd,
-    },
-  };
-
   if (!offsetSize && !newPageSize) {
+    const dateEnd = getDateEndFromSlug(slug);
+    const periods = getTimePeriods();
+    const enrollments = await LessonEnrollment.findAll({
+      where: {
+        userId,
+        status: LESSON_ENROLLMENT.ACTIVE,
+      },
+      attributes: ["lessonId"],
+      raw: true,
+    });
+
+    if (!enrollments.length) {
+      return 0;
+    }
+
+    const where = {
+      id: { [Op.in]: enrollments.map((e) => e.lessonId) },
+      ...UPCOMING_LESSON_BASE_STATUS,
+      lessonDate: { [Op.gte]: periods.now, [Op.lte]: dateEnd },
+    };
     return await Lesson.count({ where });
   }
 
-  const filterUpcomingLessons = (lessons: any[]) => {
-    return lessons.filter((lesson) => {
-      if (!lesson.lessonDate) return false;
-      const lessonDateTime = lessonDateStartTime(
-        lesson.startTime || "12:00 AM",
-        new Date(lesson.lessonDate),
-      );
-      return isAfter(lessonDateTime, now);
-    });
-  };
-
-  let lessons = await Lesson.findAll({
-    where,
-    order: [["updatedAt", "DESC"]],
-    ...(offsetSize !== undefined && { offset: offsetSize }),
-    ...(newPageSize !== undefined && { limit: newPageSize }),
-    ...(excludeAttributes && {
-      attributes: { exclude: LESSON_EXCLUDED_ATTRIBUTES },
-    }),
-    raw: true,
-  });
-
-  lessons = await getLessonsDependencies(lessons, userId);
-
-  return filterUpcomingLessons(lessons);
+  const lessons = await fetchUpcomingLessons(
+    "user",
+    userId,
+    slug,
+    offsetSize,
+    newPageSize,
+    excludeAttributes,
+  );
+  const filtered = filterUpcomingLessons(lessons);
+  return getLessonsDependencies(filtered, userId);
 };
