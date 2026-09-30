@@ -73,7 +73,7 @@ if (
 
 const apiLimiter = rateLimit({
   windowMs: 2 * 60 * 1000, // 2 min window
-  max: 100, // 100 requests per IP
+  max: 500, // 100 requests per IP
   standardHeaders: true, // RateLimit-* headers
   legacyHeaders: false,
   message: {

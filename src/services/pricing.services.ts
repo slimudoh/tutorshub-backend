@@ -5,6 +5,9 @@ import {
   PRICING,
   PRICING_PLAN_EXCLUDED_ATTRIBUTES,
   SUBSCRIPTION,
+  LESSON_ENROLLMENT,
+  TRANSACTION_TYPE,
+  TRANSACTION_STATUS,
 } from "../utils/constant";
 import User from "../models/user.models";
 import moment from "moment";
@@ -12,6 +15,8 @@ import { format } from "date-fns";
 import { createAuditLog } from "./auditLog.services";
 import { createNotification } from "./notification.services";
 import { buildPricingSearchWhere } from "../utils/search";
+import LessonEnrollment from "../models/lessonEnrollment.models";
+import { createTransaction } from "./transaction.services";
 
 export const findAllPricingPlans = async (
   includeFree = true,
@@ -45,7 +50,7 @@ export const findUsersSubscriptionPlans = async (userId: string) => {
     where: {
       userId,
     },
-    order: [["updatedAt", "DESC"]],
+    order: [["status", "ASC"]],
     raw: true,
   });
 };
@@ -195,18 +200,6 @@ export const updateUserSubscription = async (
   );
 };
 
-export const renewUserSubscription = async (
-  userId: string,
-  subscriptionId: string,
-  startDate: Date,
-  endDate: Date,
-) => {
-  return await SubscriptionPlan.update(
-    { startDate, endDate, status: SUBSCRIPTION.ACTIVE },
-    { where: { id: subscriptionId, userId, status: SUBSCRIPTION.EXPIRED } },
-  );
-};
-
 export const findSubscriptionPlanById = async (id: string, userId: string) => {
   return await SubscriptionPlan.findOne({
     where: {
@@ -278,6 +271,27 @@ export const renewSubscriptionPlans = async () => {
         );
       }
 
+      // Create transaction for the renewal (only for paid plans)
+      if (updateLog && subscription.userId && subscription.planId) {
+        const plan = await PricingPlan.findByPk(subscription.planId, {
+          raw: true,
+        });
+        if (plan && plan.amount && plan.amount > 0) {
+          const reference = `SUB-RENEW-${subscription.userId}-${Date.now()}`;
+          await createTransaction({
+            userId: subscription.userId,
+            transactionType: TRANSACTION_TYPE.PAYMENT,
+            reference,
+            currency: plan.currency || "USD",
+            amount: plan.amount || 0,
+            status: TRANSACTION_STATUS.SUCCESSFUL,
+            channel: "system",
+            purpose: `Subscription Payment for ${plan.title} plan`,
+            lessonId: null,
+          });
+        }
+      }
+
       if (updateLog) {
         await createAuditLog({
           ...auditBase,
@@ -314,6 +328,57 @@ export const renewSubscriptionPlans = async () => {
             newStatus: SUBSCRIPTION.EXPIRED,
           }),
         });
+      }
+
+      // Cancel all active lesson enrollments for the user before moving to free plan
+      if (subscription.userId) {
+        const user = await User.findByPk(subscription.userId);
+        if (user && subscription.id) {
+          const activeEnrollments = await LessonEnrollment.findAll({
+            where: {
+              userId: user.id,
+              status: LESSON_ENROLLMENT.ACTIVE,
+            },
+            raw: true,
+          });
+
+          for (const enrollment of activeEnrollments) {
+            if (enrollment.lessonId && user.id && subscription.id) {
+              await LessonEnrollment.update(
+                { status: LESSON_ENROLLMENT.CANCELLED, creditsUsed: 0 },
+                { where: { userId: user.id, lessonId: enrollment.lessonId } },
+              );
+              await addSubscriptionCredits(user.id, subscription.id, 1);
+            }
+          }
+
+          // Create a free plan for the user if free plan exists and user doesn't already have an active free plan
+          if (freePlan?.id && user.id) {
+            const existingFreeSub = await SubscriptionPlan.findOne({
+              where: {
+                userId: user.id,
+                planId: freePlan.id,
+                status: SUBSCRIPTION.ACTIVE,
+              },
+              raw: true,
+            });
+
+            if (!existingFreeSub) {
+              await createUserSubscription(user, freePlan, true);
+              await createAuditLog({
+                action: "CREATE FREE SUBSCRIPTION",
+                oldData: JSON.stringify(subscription),
+                newData: JSON.stringify({
+                  message:
+                    "Free plan created for user after paid plan expiration",
+                  planId: freePlan.id,
+                  userId: user.id,
+                }),
+                section: "SUBSCRIPTION PLAN",
+              });
+            }
+          }
+        }
       }
     }
   }

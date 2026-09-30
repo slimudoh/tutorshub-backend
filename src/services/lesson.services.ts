@@ -61,10 +61,7 @@ import {
   getDateEndFromSlug,
   filterUpcomingLessons,
   UPCOMING_LESSON_BASE_STATUS,
-  buildUpcomingLessonWhere,
-  countUpcomingLessonsForPeriod,
   fetchUpcomingLessons,
-  UpcomingLessonScope,
 } from "../utils/lesson";
 
 export const findLessonById = async (

@@ -9,6 +9,7 @@ import {
 } from "../services/transaction.services";
 import {
   PRICING,
+  SUBSCRIPTION,
   TRANSACTION_STATUS,
   TRANSACTION_TYPE,
 } from "../utils/constant";
@@ -17,10 +18,14 @@ import {
   createUserSubscription,
   findAllPricingPlans,
   findUsersSubscriptionPlans,
+  updateSubscriptionPlanStatus,
 } from "../services/pricing.services";
 import SubscriptionPlan from "../models/subscriptionPlan.models";
 import { createNotification } from "../services/notification.services";
-import { createBulkAuditLogs } from "../services/auditLog.services";
+import {
+  createAuditLog,
+  createBulkAuditLogs,
+} from "../services/auditLog.services";
 import { getUserCurrency } from "../services/currency.services";
 import { paginationHelper } from "../utils/formatter";
 import { CustomRequest } from "../types";
@@ -244,13 +249,17 @@ export const changePricingPlan: RequestHandler = async (
     });
 
     const activeSubscription = subscriptionPlans.find(
-      (sub) => sub.status !== "CANCELED",
+      (sub) => sub.status === "ACTIVE" && sub?.plan?.amount,
+    );
+
+    const freeSubscription = subscriptionPlans.find(
+      (sub) => sub.status === "ACTIVE" && !sub?.plan?.amount,
     );
 
     if (activeSubscription) {
       return next(
         makeError(
-          `You have an active subscription to ${activeSubscription.plan?.title} plan. Please cancel it before changing your plan.`,
+          `You have an active subscription to ${activeSubscription.plan?.title} plan.`,
           400,
         ),
       );
@@ -267,6 +276,26 @@ export const changePricingPlan: RequestHandler = async (
     const existingTransaction = await getTransactionByReference(reference);
     if (existingTransaction) {
       return next(makeError("Transaction already exists.", 409));
+    }
+
+    if (freeSubscription?.id) {
+      await Promise.all([
+        updateSubscriptionPlanStatus(
+          freeSubscription.id,
+          userId,
+          SUBSCRIPTION.CANCELED,
+        ),
+        createAuditLog({
+          user: JSON.stringify(user),
+          action: "CANCEL SUBSCRIPTION PLAN",
+          oldData: JSON.stringify(freeSubscription),
+          newData: JSON.stringify({
+            ...freeSubscription,
+            status: SUBSCRIPTION.CANCELED,
+          }),
+          section: "SUBSCRIPTION PLAN",
+        }),
+      ]);
     }
 
     const [transaction, newSubscriptionPlan] = await Promise.all([
